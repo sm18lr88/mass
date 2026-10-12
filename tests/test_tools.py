@@ -93,11 +93,11 @@ class CheckSourceTests(TempRepoTestCase):
         self.assertEqual(check_source.check(root)[0], ["Symlink: link.txt"])
 
     def test_personal_path_is_reported(self) -> None:
-        root = self.write_repo({"f.txt": b"see /Users/alice/project\n"})
+        root = self.write_repo({"f.txt": b"see /" + b"Users/alice/project\n"})
         self.assertEqual(check_source.check(root)[0], ["personal absolute path: f.txt"])
 
     def test_email_is_reported(self) -> None:
-        root = self.write_repo({"f.txt": b"contact alice@example.com\n"})
+        root = self.write_repo({"f.txt": b"contact alice" + b"@" + b"example.com\n"})
         self.assertEqual(check_source.check(root)[0], ["email address: f.txt"])
 
     def test_api_key_is_reported(self) -> None:

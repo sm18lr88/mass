@@ -133,7 +133,7 @@
   "tests/test_pipeline.py": "22e0dbaefdb0cb53e6bc8e0ed04cbbc367e056e2b19fd102440b29e9dba66205",
   "tests/test_rhi_core.py": "53c727fb88a9206afd87dc5d7a955f4ee0dda57d514fcc775f9ed95edfe3a318",
   "tests/test_rhi_modules.py": "c4cf53157d86312a6a0fd22275cdb1e5f414b76b7fcd91350a069ea055e05396",
-  "tests/test_tools.py": "9b30aa51251e72c00641af8a94715e17a42a4c90628f42cd2c9d979ba3f7927f",
+  "tests/test_tools.py": "f04f142578fb0fb17befd926f29ab6d1c1b6b18aa34f3f8ff68bbb587e51780c",
   "tests/test_training.py": "facd0cf0912344d98d446f990187a4f9fed59f82b28701c73fd6d303b28e6708",
   "tools/check_source.py": "9bf589b8e2c53db0ece94f11f8874f69776684ef8105c3b0e10eded95ea73a35",
   "tools/fetch_models.py": "43ebf06e164d980e6e5f55cb5f0979dfeb82c37e0fc4c7ca8a951c05cb451b3a",
