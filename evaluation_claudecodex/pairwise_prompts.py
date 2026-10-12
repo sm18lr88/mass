@@ -1,3 +1,4 @@
+# Pairwise judge protocol text: reviewer personas, system instructions, and rubric suffix.
 from __future__ import annotations
 
 # Shared rules (task contract, evidence-only, JSON-only) — see evaluation/prompts.py spirit.

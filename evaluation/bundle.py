@@ -1,3 +1,4 @@
+# Judge evidence bundle: assemble workspace tree, preflight, excerpts, and log into prompt text.
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -49,6 +50,7 @@ def build_judge_bundle(
     log_tail: int = 16_000,
     log_full: bool = False,
 ) -> JudgeBundle:
+    """Collect the bounded evidence for one submission workspace and task row."""
     qid = str(task_row.get("query_id", ""))
     task_text = str(task_row.get("query", ""))
 
@@ -139,6 +141,7 @@ def bundle_workspace_evidence(
 
 
 def bundle_to_user_message(b: JudgeBundle) -> str:
+    """Task block followed by :func:`bundle_workspace_evidence`."""
     return "\n".join(
         [
             "# Task",

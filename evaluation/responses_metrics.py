@@ -1,3 +1,4 @@
+# Judge API token usage serialization and approximate USD cost estimates.
 """
 Token usage and rough USD cost from judge-model API usage.
 
@@ -72,8 +73,8 @@ def extract_usage_dict(response: Any) -> dict[str, Any]:
         try:
             dumped = u.model_dump()
             return dict(dumped) if isinstance(dumped, dict) else {"raw": dumped}
-        except Exception:
-            pass
+        except (TypeError, ValueError):
+            pass  # Unserializable usage object: fall back to reading known fields below.
     out: dict[str, Any] = {}
     for k in (
         "input_tokens",
@@ -88,7 +89,7 @@ def extract_usage_dict(response: Any) -> dict[str, Any]:
         if hasattr(v, "model_dump"):
             try:
                 out[k] = v.model_dump()
-            except Exception:
+            except (TypeError, ValueError):
                 out[k] = str(v)
         elif isinstance(v, bool):
             out[k] = v

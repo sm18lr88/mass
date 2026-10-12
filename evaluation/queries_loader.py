@@ -1,3 +1,4 @@
+# Task query id normalization and lookup in the task catalog JSON.
 from __future__ import annotations
 
 import json
