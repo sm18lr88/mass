@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
+# Generate Harbor task environments for the 102 verified ScienceAgentBench tasks.
 """Build the 102 verified ScienceAgentBench task environments.
 Program-presence rewards are bookkeeping; use the official evaluator for scores."""
 from pathlib import Path
 import os
-import sys
 BENCH_ROOT = Path(os.environ.get("MASS_BENCH_ROOT", str(Path(__file__).resolve().parents[1] / "work"))).resolve()
 
-import argparse, json, os, shutil, subprocess
+import argparse, json, os, shutil
 from pathlib import Path
 from datasets import load_dataset
 

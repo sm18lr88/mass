@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
+# Judge MLR-Bench papers with the official Overall rubric via two external models.
 """Review MLR-Bench papers using the official Overall rubric and two external judges.
 Missing or shorter-than-200-byte papers receive zero."""
 from pathlib import Path
 import os
-import sys
 BENCH_ROOT = Path(os.environ.get("MASS_BENCH_ROOT", str(Path(__file__).resolve().parents[1] / "work"))).resolve()
 
-import argparse, glob, json, os, re, sys, time
+import argparse, glob, json, os, re, time
 _REPO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "vendor", "mlrbench")
 _src = open(os.path.join(_REPO, "mlrbench", "evals", "overall_review.py"), encoding="utf-8").read()
 OVERALL_RUBRIC = re.search(r'OVERALL_RUBRIC = """(.*?)"""', _src, re.S).group(1)   # verbatim from the official reviewer
@@ -67,11 +67,11 @@ def review_one(trial_dir, judge, task_md, code_limit=60000):
     vd = os.path.join(trial_dir, "verifier"); out = os.path.join(vd, f"review_{judge}.json")
     os.makedirs(vd, exist_ok=True)
     if os.path.exists(out):
-        return json.load(open(out))
+        return json.load(open(out, encoding="utf-8"))
     paper = os.path.join(vd, "results", "paper.md")
     if not os.path.exists(paper) or os.path.getsize(paper) < 200:
         rec = {"missing_paper": True, "Clarity": {"score": 0}, "Novelty": {"score": 0}, "Soundness": {"score": 0}, "Significance": {"score": 0}, "Overall": {"score": 0}, "Confidence": 5}
-        json.dump(rec, open(out, "w"), indent=1); return rec
+        json.dump(rec, open(out, "w", encoding="utf-8"), indent=1); return rec
     paper_md = read_text(paper)[:120000]
     code_dir = os.path.join(vd, "code")
     code_text = (read_combine_files(code_dir) if os.path.isdir(code_dir) else "")[:code_limit]
@@ -84,7 +84,7 @@ def review_one(trial_dir, judge, task_md, code_limit=60000):
             for k in ("Clarity", "Novelty", "Soundness", "Significance", "Overall", "Confidence"):
                 if k not in rev: raise ValueError(f"missing {k}")
             rev["_usage"] = usage; rev["_judge"] = judge; rev["missing_paper"] = False
-            json.dump(rev, open(out, "w"), indent=1); return rev
+            json.dump(rev, open(out, "w", encoding="utf-8"), indent=1); return rev
         except Exception as e:  # noqa: BLE001
             print(f"  {judge} attempt {attempt+1} failed: {repr(e)[:160]}", flush=True); time.sleep(5)
     return None
@@ -96,7 +96,7 @@ def main():
     results = {}
     for j in a.jobs:
         for c in sorted(glob.glob(os.path.join(j, "*", "config.json"))):
-            td = os.path.dirname(c); cfg = json.load(open(c)); tp = (cfg.get("task") or {}).get("path") or ""
+            td = os.path.dirname(c); cfg = json.load(open(c, encoding="utf-8")); tp = (cfg.get("task") or {}).get("path") or ""
             task = tp.rstrip("/").split("/")[-1]; task_md = read_text(os.path.join(tp, "task.md")) if tp and os.path.exists(os.path.join(tp, "task.md")) else ""
             rec = {"job": os.path.basename(j.rstrip("/")), "trial": os.path.basename(td), "task": task, "reviews": {}}
             for judge in a.judges:
@@ -106,7 +106,7 @@ def main():
             rec["overall_mean"] = round(sum(sc) / len(sc), 2) if sc else None
             results[f"{rec['job']}/{task}"] = rec
             print(f"{rec['job']} {task}: " + " | ".join(f"{jn}: overall {v['Overall']} (C{v['Clarity']} N{v['Novelty']} S{v['Soundness']} Sig{v['Significance']}){' [no paper]' if v['missing_paper'] else ''}" for jn, v in rec["reviews"].items()), flush=True)
-    if a.out: json.dump(results, open(a.out, "w"), indent=1)
+    if a.out: json.dump(results, open(a.out, "w", encoding="utf-8"), indent=1)
 
 
 if __name__ == "__main__":

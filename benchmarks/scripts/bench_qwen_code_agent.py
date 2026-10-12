@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Harbor agent adapter running qwen-code through the logging proxy with infra-failure retries.
 """Harbor adapter for L^(0), L^(1), and L^(2) with qwen-code 0.20.0.
 Records each request through the logging proxy and retries infrastructure failures."""
 import sys
@@ -267,7 +268,7 @@ class BenchQwenCode(QwenCode):
         out = []
         if not stream.exists():
             return out
-        with open(stream, errors="replace") as f:
+        with open(stream, encoding="utf-8", errors="replace") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -319,7 +320,7 @@ class BenchQwenCode(QwenCode):
         usage = {"prompt_tokens": 0, "completion_tokens": 0, "chat_requests": 0, "max_prompt_tokens": 0}
         api_log_final = ""
         if api_log.exists():
-            with open(api_log, errors="replace") as f, gzip.open(str(api_log) + ".gz", "wt", compresslevel=6) as g:
+            with open(api_log, encoding="utf-8", errors="replace") as f, gzip.open(str(api_log) + ".gz", "wt", compresslevel=6) as g:
                 for line in f:
                     g.write(line)
                     n_req += 1

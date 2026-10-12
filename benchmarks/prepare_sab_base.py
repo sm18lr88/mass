@@ -1,3 +1,4 @@
+# Build the official ScienceAgentBench base Docker image.
 """Build the official SAB base image without executing predictions."""
 import os
 from pathlib import Path

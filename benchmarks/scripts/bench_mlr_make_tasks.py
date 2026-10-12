@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
+# Generate Harbor task environments for the configured MLR-Bench subset.
 """Build the configured MLR-Bench task environments with two-hour agent limits."""
 from pathlib import Path
 import os
-import sys
 BENCH_ROOT = Path(os.environ.get("MASS_BENCH_ROOT", str(Path(__file__).resolve().parents[1] / "work"))).resolve()
 
 import argparse, os, shutil

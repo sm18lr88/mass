@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Write the paired per-task seed map shared across model generations.
 """Paired public-benchmark seeds: 3100000 + benchmark*10000 + trial*1000 + task_index."""
 import json, os, sys
 from pathlib import Path

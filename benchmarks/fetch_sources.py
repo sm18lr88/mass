@@ -1,3 +1,4 @@
+# Clone pinned public benchmark repositories into benchmarks/vendor and apply local patches.
 """Fetch public benchmark code at fixed commits; no benchmark execution."""
 import json
 from pathlib import Path

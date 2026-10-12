@@ -1,3 +1,4 @@
+# Offline checks for harbor-free benchmark aggregation and evaluator path handling.
 import importlib.util
 import json
 from pathlib import Path

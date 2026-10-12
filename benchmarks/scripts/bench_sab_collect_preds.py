@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
+# Collect ScienceAgentBench predicted programs and run the official evaluator.
 """Collect predicted programs and optionally run the official ScienceAgentBench evaluator."""
 from pathlib import Path
 import os
-import sys
 BENCH_ROOT = Path(os.environ.get("MASS_BENCH_ROOT", str(Path(__file__).resolve().parents[1] / "work"))).resolve()
 
 import argparse, json, os, subprocess, sys
@@ -16,7 +16,7 @@ BENCH = BENCH_ROOT / "sab" / "benchmark"
 
 
 def collect(job_dir: Path, out: Path) -> dict:
-    index = json.loads(INDEX.read_text()); out.mkdir(parents=True, exist_ok=True)
+    index = json.loads(INDEX.read_text(encoding="utf-8")); out.mkdir(parents=True, exist_ok=True)
     trials = {}
     for t in sorted(job_dir.iterdir()):
         if not (t / "config.json").exists():
@@ -34,7 +34,7 @@ def collect(job_dir: Path, out: Path) -> dict:
         if src is None:
             (out / pred).write_text("ERROR"); report["missing"].append(task); report["per_task"][task] = None
         else:
-            (out / pred).write_text(src.read_text(errors="replace").replace("/workspace", "."))
+            (out / pred).write_text(src.read_text(encoding="utf-8", errors="replace").replace("/workspace", "."))
             report["found"] += 1; report["per_task"][task] = str(src.parent.parent.parent.name)
     (out / "collect_report.json").write_text(json.dumps(report, indent=1) + "\n")
     print(f"collected {report['found']}/{len(index)} programs into {out}; missing: {len(report['missing'])}")
@@ -52,7 +52,7 @@ def evaluate(out: Path, run_id: str, max_workers: int) -> Path:
 
 
 def summarize(log: Path) -> dict:
-    rows = [json.loads(l) for l in log.read_text().splitlines() if l.strip()]
+    rows = [json.loads(l) for l in log.read_text(encoding="utf-8").splitlines() if l.strip()]
     n = len(rows)
     if n != 102:
         raise ValueError(f"Expected all 102 official evaluator rows, found {n}")

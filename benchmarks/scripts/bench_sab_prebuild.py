@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
+# Prebuild ScienceAgentBench task Docker images before agent runs.
 """Build the ScienceAgentBench task images before agent execution."""
 from pathlib import Path
 import os
-import sys
 BENCH_ROOT = Path(os.environ.get("MASS_BENCH_ROOT", str(Path(__file__).resolve().parents[1] / "work"))).resolve()
 
 import argparse, concurrent.futures as cf, json, os, time

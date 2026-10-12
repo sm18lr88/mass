@@ -1,3 +1,4 @@
+# Aggregate ScienceAgentBench trial scores from official evaluator output.
 """Aggregate per-trial metrics; never substitute published values for outputs."""
 import argparse
 import json
@@ -6,7 +7,7 @@ import statistics
 
 
 def sab_trial(path, expected=102):
-    rows = [json.loads(s) for s in Path(path).read_text().splitlines() if s.strip()]
+    rows = [json.loads(s) for s in Path(path).read_text(encoding="utf-8").splitlines() if s.strip()]
     if len(rows) != expected:
         raise ValueError(f"Expected {expected} scored instances, found {len(rows)} in {path}")
     ids = [r.get("instance_id") for r in rows]
