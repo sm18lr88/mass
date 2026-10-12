@@ -1,11 +1,11 @@
 # Bradley-Terry scores from pairwise trajectory verdicts.
 """Bradley--Terry fitting for within-task trajectory comparisons."""
-from collections.abc import Mapping, Sequence
+
 import math
+from collections.abc import Mapping, Sequence
 
 
-def bradley_terry(episodes: Sequence[str], matches: Mapping[tuple[str, str], Mapping[str, str]],
-                  iters: int = 500, prior: float = 0.5) -> dict[str, float]:
+def bradley_terry(episodes: Sequence[str], matches: Mapping[tuple[str, str], Mapping[str, str]], iters: int = 500, prior: float = 0.5) -> dict[str, float]:
     """MM algorithm with a weak prior (each episode gets `prior` virtual wins/losses vs the mean)."""
     idx = {e: i for i, e in enumerate(episodes)}
     n = len(episodes)

@@ -1,6 +1,6 @@
 # Within-task self-ranking tournaments and train/validation trajectory selection.
-from pathlib import Path
 import random
+from pathlib import Path
 
 from .config import query_name, run_root
 from .episodes import completed
@@ -14,16 +14,16 @@ def tournament_pairs(names, opponents: int, seed: int) -> list[tuple[str, str]]:
         raise ValueError("Use an even opponents_per_episode >= 2")
     names = sorted(names)
     random.Random(seed).shuffle(names)
-    pairs = {tuple(sorted((name, names[(i + d) % len(names)])))
-             for i, name in enumerate(names) for d in range(1, min(opponents // 2, len(names) - 1) + 1)}
+    pairs = {tuple(sorted((name, names[(i + d) % len(names)]))) for i, name in enumerate(names) for d in range(1, min(opponents // 2, len(names) - 1) + 1)}
     pairs = sorted(pairs)
     rng = random.Random(seed + 1)
-    return [(b, a) if rng.random() < .5 else (a, b) for a, b in pairs]
+    return [(b, a) if rng.random() < 0.5 else (a, b) for a, b in pairs]
 
 
 def rank(c: dict, tasks: list[int]) -> None:
     # Looked up at call time so tests can patch mass.judging.self_judge.
     from .judging import self_judge
+
     base = run_root(c)
     pool = read_json(base / "pool.json")
     for q in tasks:
@@ -58,7 +58,7 @@ def select(c: dict) -> None:
         rows = read_json(base / f"selection/task{q}_ranked.json")
         if len(rows) < c["collection"]["validation_rank"]:
             raise ValueError(f"Missing validation rank for task {q}")
-        train.extend(rows[:c["collection"]["train_ranks"]])
+        train.extend(rows[: c["collection"]["train_ranks"]])
         val.append(rows[c["collection"]["validation_rank"] - 1])
     if not train or not val:
         raise ValueError("No eligible training/validation trajectories")

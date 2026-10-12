@@ -1,12 +1,13 @@
 # Verify reviewed source hashes and scan manifest files for personal paths and credentials offline.
 """Check reviewed source integrity and common personal-path/credential leaks offline."""
+
 import argparse
 import hashlib
 import json
-from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import sys
 from collections.abc import Iterable
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 ROOT = Path(__file__).resolve().parents[1]
 PATTERNS = {

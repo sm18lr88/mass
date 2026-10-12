@@ -1,7 +1,7 @@
 # One qwen-code episode via runtime/run_episode.sh, reused only when it completed successfully.
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 from urllib.parse import urlparse
 
 from . import process
@@ -23,7 +23,5 @@ def episode(c: dict, prompt: Path, workspace: Path, logs: Path, seed: int, condi
         return
     # The shell runner refuses to overwrite partial/failed episodes. Keep the
     # evidence and use a new run directory after correcting an infrastructure failure.
-    env = dict(os.environ, MODEL_ID=c["model_id"], PROXY_PORT=str(c["proxy_port"]),
-               PROXY_PY=sys.executable, HIW_CONDITION=condition)
-    process.run(["bash", ROOT / "runtime/run_episode.sh", prompt, workspace, logs,
-                 str(urlparse(c["endpoint"]).port), str(seed)], env)
+    env = dict(os.environ, MODEL_ID=c["model_id"], PROXY_PORT=str(c["proxy_port"]), PROXY_PY=sys.executable, HIW_CONDITION=condition)
+    process.run(["bash", ROOT / "runtime/run_episode.sh", prompt, workspace, logs, str(urlparse(c["endpoint"]).port), str(seed)], env)

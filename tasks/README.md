@@ -10,17 +10,17 @@ checkpoint selection.
 
 ## Nine designated training tasks
 
-| Task | Domain | Study | Full task prompt | Initial workflow |
-|---|---|---|---|---|
-| 51 | Finance | Macro signals and cross-asset trading | [Prompt](bare/query51.txt) | [Task + workflow](initial/query51_ourTeam.txt) |
-| 53 | Finance | Trading around monetary-policy announcements | [Prompt](bare/query53.txt) | [Task + workflow](initial/query53_ourTeam.txt) |
-| 56 | Finance | Yield-curve relative-value strategies | [Prompt](bare/query56.txt) | [Task + workflow](initial/query56_ourTeam.txt) |
-| 202 | Pharmacy | Protein-interface prediction | [Prompt](bare/query202.txt) | [Task + workflow](initial/query202_ourTeam.txt) |
-| 205 | Pharmacy | Molecular-dynamics force-field validation | [Prompt](bare/query205.txt) | [Task + workflow](initial/query205_ourTeam.txt) |
-| 221 | Pharmacy | Protein-sequence tokenization | [Prompt](bare/query221.txt) | [Task + workflow](initial/query221_ourTeam.txt) |
-| 302 | Robotics | Learned heuristics for path planning | [Prompt](bare/query302.txt) | [Task + workflow](initial/query302_ourTeam.txt) |
-| 307 | Robotics | Synthetic manipulation-planning datasets | [Prompt](bare/query307.txt) | [Task + workflow](initial/query307_ourTeam.txt) |
-| 324 | Robotics | Subgoal discovery for navigation | [Prompt](bare/query324.txt) | [Task + workflow](initial/query324_ourTeam.txt) |
+| Task | Domain   | Study                                        | Full task prompt            | Initial workflow                                |
+| ---- | -------- | -------------------------------------------- | --------------------------- | ----------------------------------------------- |
+| 51   | Finance  | Macro signals and cross-asset trading        | [Prompt](bare/query51.txt)  | [Task + workflow](initial/query51_ourTeam.txt)  |
+| 53   | Finance  | Trading around monetary-policy announcements | [Prompt](bare/query53.txt)  | [Task + workflow](initial/query53_ourTeam.txt)  |
+| 56   | Finance  | Yield-curve relative-value strategies        | [Prompt](bare/query56.txt)  | [Task + workflow](initial/query56_ourTeam.txt)  |
+| 202  | Pharmacy | Protein-interface prediction                 | [Prompt](bare/query202.txt) | [Task + workflow](initial/query202_ourTeam.txt) |
+| 205  | Pharmacy | Molecular-dynamics force-field validation    | [Prompt](bare/query205.txt) | [Task + workflow](initial/query205_ourTeam.txt) |
+| 221  | Pharmacy | Protein-sequence tokenization                | [Prompt](bare/query221.txt) | [Task + workflow](initial/query221_ourTeam.txt) |
+| 302  | Robotics | Learned heuristics for path planning         | [Prompt](bare/query302.txt) | [Task + workflow](initial/query302_ourTeam.txt) |
+| 307  | Robotics | Synthetic manipulation-planning datasets     | [Prompt](bare/query307.txt) | [Task + workflow](initial/query307_ourTeam.txt) |
+| 324  | Robotics | Subgoal discovery for navigation             | [Prompt](bare/query324.txt) | [Task + workflow](initial/query324_ourTeam.txt) |
 
 In the reported experiment, workflow search did not
 find a workflow for task 221 that beat its reference, so it was excluded from
@@ -29,11 +29,11 @@ does not move task 221 into the test split.
 
 ## Three test tasks
 
-| Task | Domain | Study | Full task prompt | Initial workflow |
-|---|---|---|---|---|
-| 60 | Finance | Trading execution costs and capacity | [Prompt](bare/query60.txt) | [Task + workflow](initial/query60_ourTeam.txt) |
-| 207 | Pharmacy | Inverse-folding evaluation | [Prompt](bare/query207.txt) | [Task + workflow](initial/query207_ourTeam.txt) |
-| 305 | Robotics | Tool-use planning for manipulation | [Prompt](bare/query305.txt) | [Task + workflow](initial/query305_ourTeam.txt) |
+| Task | Domain   | Study                                | Full task prompt            | Initial workflow                                |
+| ---- | -------- | ------------------------------------ | --------------------------- | ----------------------------------------------- |
+| 60   | Finance  | Trading execution costs and capacity | [Prompt](bare/query60.txt)  | [Task + workflow](initial/query60_ourTeam.txt)  |
+| 207  | Pharmacy | Inverse-folding evaluation           | [Prompt](bare/query207.txt) | [Task + workflow](initial/query207_ourTeam.txt) |
+| 305  | Robotics | Tool-use planning for manipulation   | [Prompt](bare/query305.txt) | [Task + workflow](initial/query305_ourTeam.txt) |
 
 ## Use the tasks
 
@@ -41,12 +41,12 @@ does not move task 221 into the test split.
 tasks, and the eight tasks used for SFT. The corresponding fields in both
 cycle configurations are:
 
-| Configuration field | Meaning |
-|---|---|
-| `tasks.train_candidates` | All nine designated training tasks |
-| `tasks.train` | The eight tasks used for SFT in the paper configuration |
-| `tasks.test` | The three test tasks |
-| `tasks.excluded` | Task 221, excluded from teacher collection |
+| Configuration field      | Meaning                                                 |
+| ------------------------ | ------------------------------------------------------- |
+| `tasks.train_candidates` | All nine designated training tasks                      |
+| `tasks.train`            | The eight tasks used for SFT in the paper configuration |
+| `tasks.test`             | The three test tasks                                    |
+| `tasks.excluded`         | Task 221, excluded from teacher collection              |
 
 The default `search` stage includes all 12 tasks. To run RHI on the nine
 designated training tasks only, run this from the repository root after setup:

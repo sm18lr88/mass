@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # CLI: renders recorded qwen-code episodes into masked SFT windows JSONL (+ optional stats/strict audit).
 """Render recorded qwen-code conversations into masked SFT windows."""
+
 import argparse
 import copy
 import glob
@@ -35,16 +36,18 @@ def _read_json(path: str) -> Any:
         return json.load(f)
 
 
-def process_episode(logs_dir: str, renderer: Renderer, args: argparse.Namespace,
-                    teacher_prompts: dict[str, str], bare: Any) -> tuple[list[dict[str, Any]] | None, Any]:
+def process_episode(
+    logs_dir: str, renderer: Renderer, args: argparse.Namespace, teacher_prompts: dict[str, str], bare: Any
+) -> tuple[list[dict[str, Any]] | None, Any]:
     bare_map, bare_default = bare if isinstance(bare, tuple) else ({}, bare)
     status_p = os.path.join(logs_dir, "run_status.json")
     status = _read_json(status_p) if os.path.exists(status_p) else None
     recs, _log_path = load_requests(logs_dir)
     if recs is None:
         return None, "no api log"
-    chats = [r for r in recs if r.get("path") == "/v1/chat/completions" and r.get("status") == 200
-             and r.get("response") and (r["response"].get("choices") or [])]
+    chats = [
+        r for r in recs if r.get("path") == "/v1/chat/completions" and r.get("status") == 200 and r.get("response") and (r["response"].get("choices") or [])
+    ]
     if not chats:
         return None, "no chat requests"
     cond = (status or {}).get("hiw", {}).get("condition") or os.path.basename(logs_dir).rsplit("_s", 1)[0]
@@ -54,9 +57,18 @@ def process_episode(logs_dir: str, renderer: Renderer, args: argparse.Namespace,
         return None, f"no bare prompt for condition {cond}"
     convs = group_threads(chats)
     ep_name = os.path.basename(logs_dir.rstrip("/"))
-    samples, info = [], {"episode": ep_name, "condition": cond, "seed": (status or {}).get("seed"),
-                         "success": (status or {}).get("trace_has_success_result"),
-                         "n_requests": len(chats), "threads": [], "skipped_blocks": []}
+    samples, info = (
+        [],
+        {
+            "episode": ep_name,
+            "condition": cond,
+            "seed": (status or {}).get("seed"),
+            "success": (status or {}).get("trace_has_success_result"),
+            "n_requests": len(chats),
+            "threads": [],
+            "skipped_blocks": [],
+        },
+    )
     for key, seg in convs:
         last = seg[-1]
         req = last["request"]
@@ -84,17 +96,40 @@ def process_episode(logs_dir: str, renderer: Renderer, args: argparse.Namespace,
                 w_s, sk_s = make_windows(blocks, args.window, args.context_overlap)
                 for w in w_s:
                     w["segment"] = s_i
-                wins += w_s; skipped += sk_s
+                wins += w_s
+                skipped += sk_s
         except ValueError as e:  # e.g. a sub-agent thread whose header alone nearly fills the window
             info["threads"].append({"key": key, "is_main": is_main, "error": str(e)})
             continue
         for w_i, w in enumerate(wins):
-            w.update({"episode": ep_name, "condition": cond, "seed": info["seed"], "thread": key, "task": task_of_cond(cond),
-                      "is_main": is_main, "role": role, "match_mode": (hit[1] if hit else None), "window": w_i, "n_windows": len(wins), "success": info["success"]})
+            w.update({
+                "episode": ep_name,
+                "condition": cond,
+                "seed": info["seed"],
+                "thread": key,
+                "task": task_of_cond(cond),
+                "is_main": is_main,
+                "role": role,
+                "match_mode": (hit[1] if hit else None),
+                "window": w_i,
+                "n_windows": len(wins),
+                "success": info["success"],
+            })
             samples.append(w)
-        info["threads"].append({"key": key, "is_main": is_main, "role": role, "match_mode": (hit[1] if hit else None), "n_requests": len(seg), "n_messages": len(msgs),
-                                "n_segments": len(seg_blocks), "n_tokens": n_tok, "n_assistant_blocks": n_asst,
-                                "n_windows": len(wins), "final_truncated": truncated, "skipped": skipped})
+        info["threads"].append({
+            "key": key,
+            "is_main": is_main,
+            "role": role,
+            "match_mode": (hit[1] if hit else None),
+            "n_requests": len(seg),
+            "n_messages": len(msgs),
+            "n_segments": len(seg_blocks),
+            "n_tokens": n_tok,
+            "n_assistant_blocks": n_asst,
+            "n_windows": len(wins),
+            "final_truncated": truncated,
+            "skipped": skipped,
+        })
         info["skipped_blocks"] += skipped
     return samples, info
 
@@ -106,8 +141,7 @@ def main() -> None:
     ap.add_argument("--bare-prompt", default=None, help="student prompt (single-task); or use --bare-prompt-map")
     ap.add_argument("--bare-prompt-map", action="append", default=[], help="condition=path (multi-task): bare prompt per condition")
     ap.add_argument("--episode-list", default=None, help="JSON list of {logs_dir, condition?, weight?} (from select_episodes.py); overrides --episodes")
-    ap.add_argument("--teacher-prompt", action="append", default=[],
-                    help="condition=path, e.g. teacher_v10=/path/query51_ourTeam-v10.txt")
+    ap.add_argument("--teacher-prompt", action="append", default=[], help="condition=path, e.g. teacher_v10=/path/query51_ourTeam-v10.txt")
     ap.add_argument("--window", type=int, default=32768)
     ap.add_argument("--context-overlap", type=int, default=8192)
     ap.add_argument("--require-success", action="store_true")
@@ -115,7 +149,9 @@ def main() -> None:
     ap.add_argument("--keep-truncated-final", dest="drop_truncated_final", action="store_false")
     ap.add_argument("--out", required=True)
     ap.add_argument("--stats", default=None)
-    ap.add_argument("--strict", action="store_true", help="exit 1 if any used episode has a thread error, a skipped block, or a main thread without a prompt match")
+    ap.add_argument(
+        "--strict", action="store_true", help="exit 1 if any used episode has a thread error, a skipped block, or a main thread without a prompt match"
+    )
     ap.add_argument("--sent-index", default=None, help="sent/INDEX.json (qwen-code sent forms of the prompts)")
     args = ap.parse_args()
     if args.sent_index:
@@ -168,9 +204,12 @@ def main() -> None:
             agg["threads"] += len(info["threads"])
             agg["skipped_blocks"] += len(info["skipped_blocks"])
             all_info.append({**info, "used": True})
-            print(f"{info['episode']}: cond={info['condition']} success={info['success']} threads={len(info['threads'])} "
-                  f"windows={len(samples)} loss_tokens={sum(s['n_loss_tokens'] for s in samples)} "
-                  f"skipped_blocks={len(info['skipped_blocks'])}", file=sys.stderr)
+            print(
+                f"{info['episode']}: cond={info['condition']} success={info['success']} threads={len(info['threads'])} "
+                f"windows={len(samples)} loss_tokens={sum(s['n_loss_tokens'] for s in samples)} "
+                f"skipped_blocks={len(info['skipped_blocks'])}",
+                file=sys.stderr,
+            )
     agg["empty_reasoning_turns"] = renderer.n_empty_reasoning
     print(f"TOTAL: {dict(agg)} -> {args.out}", file=sys.stderr)
     if args.stats:
@@ -184,7 +223,12 @@ def main() -> None:
             errs = [t for t in e["threads"] if "error" in t]
             no_main = not any(t.get("is_main") for t in e["threads"])
             if errs or e["skipped_blocks"] or no_main:
-                bad.append({"episode": e["episode"], "thread_errors": [t.get("error") for t in errs], "skipped": e["skipped_blocks"], "no_main_thread": no_main})
+                bad.append({
+                    "episode": e["episode"],
+                    "thread_errors": [t.get("error") for t in errs],
+                    "skipped": e["skipped_blocks"],
+                    "no_main_thread": no_main,
+                })
         if bad:
             print("STRICT AUDIT FAILED:\n" + json.dumps(bad, indent=1), file=sys.stderr)
             sys.exit(1)

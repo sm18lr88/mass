@@ -59,14 +59,16 @@ class ArchitectureTests(unittest.TestCase):
     def test_benchmarks_stay_outside_the_mass_loop(self):
         # `evaluation` here is ScienceAgentBench's vendored package, not this repository's.
         forbidden = {"mass", "harness_improvement", "training", "runtime", "evaluation_claudecodex"}
-        violations = [f"{rel(path)} imports {m}" for path in python_files("benchmarks")
-                      for m in imports(path) if m.split(".")[0] in forbidden]
+        violations = [f"{rel(path)} imports {m}" for path in python_files("benchmarks") for m in imports(path) if m.split(".")[0] in forbidden]
         self.assertEqual(violations, [])
 
     def test_driver_imports_heavy_dependencies_lazily(self):
-        violations = [f"{rel(path)} imports {m} at module level" for path in python_files("mass")
-                      for m in imports(path, top_level_only=True)
-                      if not m.startswith(".") and m.split(".")[0] not in sys.stdlib_module_names]
+        violations = [
+            f"{rel(path)} imports {m} at module level"
+            for path in python_files("mass")
+            for m in imports(path, top_level_only=True)
+            if not m.startswith(".") and m.split(".")[0] not in sys.stdlib_module_names
+        ]
         self.assertEqual(violations, [])
 
     def test_every_python_file_starts_with_a_responsibility_comment(self):
@@ -80,8 +82,7 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(missing, [])
 
     def test_logging_proxy_copies_are_identical(self):
-        self.assertEqual((ROOT / "runtime/api_proxy.py").read_bytes(),
-                         (ROOT / "benchmarks/scripts/bench_api_proxy.py").read_bytes())
+        self.assertEqual((ROOT / "runtime/api_proxy.py").read_bytes(), (ROOT / "benchmarks/scripts/bench_api_proxy.py").read_bytes())
 
 
 if __name__ == "__main__":

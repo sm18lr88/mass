@@ -17,9 +17,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
-    "ruff>=0.17,<0.18",
-]
+dev = ["ruff>=0.17,<0.18"]
 # LoRA SFT, adapter merge, and FP8 export (.venv-train).
 train = [
     "torch==2.14.1",
@@ -31,26 +29,17 @@ train = [
     "triton-windows==3.8.0.post29; sys_platform == 'win32'",
 ]
 # vLLM inference server (.venv-serve). vLLM pins its own torch (2.13.0), older than train's.
-serve = [
-    "vllm==0.30.0",
-    "transformers==5.19.0",
-]
+serve = ["vllm==0.30.0", "transformers==5.19.0"]
 # Public-benchmark adapters (.venv-bench). Harbor is installed separately from
 # the pinned checkout that benchmarks/fetch_sources.py places in benchmarks/vendor/.
-bench = [
-    "datasets==5.1.0",
-    "docker==7.2.0",
-    "tqdm>=4.66",
-]
+bench = ["datasets==5.1.0", "docker==7.2.0", "tqdm>=4.66"]
 
 [tool.uv]
 # Commands run from the repository root against the checkout; there is no
 # installable distribution, so uv manages only the environment.
 package = false
 default-groups = ["dev"]
-conflicts = [
-    [{ group = "train" }, { group = "serve" }],
-]
+conflicts = [[{ group = "train" }, { group = "serve" }]]
 
 # PyPI ships CPU-only torch wheels for Windows; take the CUDA build there.
 # Linux keeps PyPI torch, which bundles CUDA.
@@ -65,7 +54,13 @@ torch = [{ index = "pytorch-cu132", marker = "sys_platform == 'win32'" }]
 [tool.ruff]
 target-version = "py312"
 line-length = 160
-extend-exclude = ["benchmarks/vendor", "benchmarks/work", "runs", "models", ".omo"]
+extend-exclude = [
+    "benchmarks/vendor",
+    "benchmarks/work",
+    "runs",
+    "models",
+    ".omo",
+]
 
 [tool.ruff.lint]
 # Correctness-focused rules only: syntax errors, pyflakes, likely bugs, and

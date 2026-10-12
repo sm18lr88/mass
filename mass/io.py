@@ -1,5 +1,6 @@
 # UTF-8 JSON/JSONL file helpers and repo-relative path resolution.
 """Small file helpers; no model or accelerator imports."""
+
 import json
 import os
 from pathlib import Path
@@ -37,8 +38,7 @@ def records(path: str | os.PathLike) -> list[Any]:
             rows.append(json.loads(line))
         except json.JSONDecodeError as err:
             # Typically a record truncated by a crash mid-append; never skip it silently.
-            raise ValueError(f"{path}: line {number} is not valid JSON ({err.msg}); "
-                             "repair or archive the file before resuming") from err
+            raise ValueError(f"{path}: line {number} is not valid JSON ({err.msg}); repair or archive the file before resuming") from err
     return rows
 
 

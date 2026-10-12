@@ -14,8 +14,7 @@ def rollout(c: dict, tasks: list[int], count: int) -> None:
     for q in tasks:
         for i in range(count):
             workspace = base / f"evaluation/workspaces/query{q}_r{i}"
-            episode(c, ROOT / f"tasks/bare/query{q}.txt", workspace,
-                    base / f"evaluation/logs/query{q}_r{i}", 910000 + q * 100 + i, f"t{q}_bare")
+            episode(c, ROOT / f"tasks/bare/query{q}.txt", workspace, base / f"evaluation/logs/query{q}_r{i}", 910000 + q * 100 + i, f"t{q}_bare")
             rows.append({"task": q, "replicate": i, "workspace": str(workspace)})
     write_json(base / "evaluation/rollouts.json", rows)
 
@@ -23,6 +22,7 @@ def rollout(c: dict, tasks: list[int], count: int) -> None:
 def report(c: dict, pairs_file: Path) -> None:
     # Looked up at call time: judging pulls in provider SDKs lazily.
     from .judging import external_judgments
+
     path = run_root(c) / "evaluation/external.jsonl"
     done = {(r["pair_id"], r["provider"], r["seed"]) for r in records(path)}
     for pair in read_json(pairs_file):
@@ -39,5 +39,13 @@ def report(c: dict, pairs_file: Path) -> None:
     rows = records(path)
     wins = sum(r["winner"] == "A" for r in rows)
     losses = sum(r["winner"] == "B" for r in rows)
-    write_json(path.with_name("summary.json"), {"wins_a": wins, "wins_b": losses, "ties": len(rows) - wins - losses,
-               "win_rate_a": wins / (wins + losses) if wins + losses else None, "judgments": len(rows)})
+    write_json(
+        path.with_name("summary.json"),
+        {
+            "wins_a": wins,
+            "wins_b": losses,
+            "ties": len(rows) - wins - losses,
+            "win_rate_a": wins / (wins + losses) if wins + losses else None,
+            "judgments": len(rows),
+        },
+    )

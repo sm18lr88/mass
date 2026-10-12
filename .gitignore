@@ -9,6 +9,7 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+.solidkg/
 
 # Credentials and local configuration
 .env
@@ -19,6 +20,11 @@ htmlcov/
 # Generated experiment data and downloaded dependencies
 runs/
 models/
+.omo/
+*.safetensors
+*.gguf
+*.pt
+*.bin
 benchmarks/vendor/
 benchmarks/work/
 benchmarks/runtime/

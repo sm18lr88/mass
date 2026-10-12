@@ -61,13 +61,11 @@ class UsageMetricsTests(unittest.TestCase):
     def test_parses_usage(self) -> None:
         resp = SimpleNamespace(
             id="r1",
-            usage=_Usage(
-                {
-                    "prompt_tokens": 10,
-                    "completion_tokens": 5,
-                    "prompt_tokens_details": {"cached_tokens": 2},
-                }
-            ),
+            usage=_Usage({
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "prompt_tokens_details": {"cached_tokens": 2},
+            }),
         )
         m = _chat_usage_metrics(resp, model="m")
         self.assertEqual(
@@ -138,12 +136,8 @@ class PollingTests(unittest.TestCase):
 
     def test_completes(self) -> None:
         clock = _Clock()
-        client = SimpleNamespace(
-            responses=_Responses([_resp("in_progress"), _resp("completed")])
-        )
-        out = _await_background_response(
-            client, _resp("queued"), timeout_seconds=1000, clock=clock, sleep=clock.sleep
-        )
+        client = SimpleNamespace(responses=_Responses([_resp("in_progress"), _resp("completed")]))
+        out = _await_background_response(client, _resp("queued"), timeout_seconds=1000, clock=clock, sleep=clock.sleep)
         self.assertEqual(out.status, "completed")
         self.assertEqual(clock.sleeps, [30.0, 30.0])
 
@@ -152,16 +146,12 @@ class PollingTests(unittest.TestCase):
         responses = _Responses([ConnectionError("boom")])
         client = SimpleNamespace(responses=responses)
         with self.assertRaises(ConnectionError):
-            _await_background_response(
-                client, _resp("queued"), timeout_seconds=10**6, clock=clock, sleep=clock.sleep
-            )
+            _await_background_response(client, _resp("queued"), timeout_seconds=10**6, clock=clock, sleep=clock.sleep)
         self.assertEqual(responses.calls, 6)
 
     def test_failed_status_raises(self) -> None:
         with self.assertRaises(RuntimeError):
-            _await_background_response(
-                SimpleNamespace(), _resp("failed"), timeout_seconds=1
-            )
+            _await_background_response(SimpleNamespace(), _resp("failed"), timeout_seconds=1)
 
 
 class ClientTimeoutTests(unittest.TestCase):

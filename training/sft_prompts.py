@@ -1,5 +1,6 @@
 # Matches teacher/bare task prompts in user messages and swaps them, incl. qwen-code normalizations (torch-free).
 """Prompt matching and substitution for SFT rendering, plus thread role and task parsing."""
+
 import copy
 import hashlib
 import json
@@ -7,7 +8,7 @@ import os
 import re
 from typing import Any
 
-SENT: dict[str, str] = {}   # md5(original prompt text) -> qwen-code sent form (loaded by load_sent_index)
+SENT: dict[str, str] = {}  # md5(original prompt text) -> qwen-code sent form (loaded by load_sent_index)
 
 UserContent = str | list[Any]
 
@@ -51,7 +52,11 @@ def prompt_variants(prompt: str) -> list[tuple[str, str]]:
     sf = sent_form(prompt)
     if sf and sf != prompt:
         out.append((sf, "qwen_sent"))
-    for cand, mode in ((prompt.strip(), "strip"), (qwen_metric_at_prompt(prompt), "qwen_metric_at"), (qwen_metric_at_prompt(prompt).strip(), "qwen_metric_at_strip")):
+    for cand, mode in (
+        (prompt.strip(), "strip"),
+        (qwen_metric_at_prompt(prompt), "qwen_metric_at"),
+        (qwen_metric_at_prompt(prompt).strip(), "qwen_metric_at_strip"),
+    ):
         if cand and all(cand != c for c, _ in out):
             out.append((cand, mode))
     return out
@@ -78,7 +83,7 @@ def substitute_prompt(user_content: UserContent, teacher_prompt: str, bare_promp
         raise ValueError("teacher prompt not found in user message")
     matched, mode = hit
     if mode == "qwen_sent":
-        bare = sent_form(bare_prompt) or bare_prompt   # what qwen-code presents for the bare prompt (identical unless it has @-tokens)
+        bare = sent_form(bare_prompt) or bare_prompt  # what qwen-code presents for the bare prompt (identical unless it has @-tokens)
     else:
         bare = qwen_metric_at_prompt(bare_prompt) if mode.startswith("qwen_metric_at") else bare_prompt
     if isinstance(user_content, str):

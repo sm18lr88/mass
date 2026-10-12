@@ -1,5 +1,6 @@
 # Renders conversations into tokenized blocks with loss masks and packs them into SFT windows (torch-free).
 """Block rendering (any HF-style tokenizer object) and window packing for SFT data."""
+
 from typing import Any
 
 from training.sft_requests import vllm_postprocess
@@ -18,8 +19,7 @@ class Renderer:
         self.n_empty_reasoning = 0
 
     def render(self, messages: list[dict[str, Any]], tools: Any, enable_thinking: bool = True) -> str:
-        return self.tok.apply_chat_template(messages, tools=tools, add_generation_prompt=False,
-                                            tokenize=False, enable_thinking=enable_thinking)
+        return self.tok.apply_chat_template(messages, tools=tools, add_generation_prompt=False, tokenize=False, enable_thinking=enable_thinking)
 
     @staticmethod
     def block_plan(msgs: list[dict[str, Any]]) -> list[tuple[int, int, str]]:
@@ -61,12 +61,15 @@ class Renderer:
                 raise ValueError("render does not start with <|im_start|>")
             pieces = ["<|im_start|>" + p for p in pieces[1:]]
             if len(pieces) != len(plan):
-                raise ValueError(f"segment {s}: {len(pieces)} <|im_start|> pieces vs {len(plan)} planned blocks "
-                                 f"(content containing the literal marker?)")
+                raise ValueError(f"segment {s}: {len(pieces)} <|im_start|> pieces vs {len(plan)} planned blocks (content containing the literal marker?)")
             blocks = []
             for piece, (a, b, kind) in zip(pieces, plan, strict=True):
-                head = {"system": "<|im_start|>system\n", "user": "<|im_start|>user\n",
-                        "assistant": "<|im_start|>assistant\n", "tool": "<|im_start|>user\n<tool_response>"}[kind]
+                head = {
+                    "system": "<|im_start|>system\n",
+                    "user": "<|im_start|>user\n",
+                    "assistant": "<|im_start|>assistant\n",
+                    "tool": "<|im_start|>user\n<tool_response>",
+                }[kind]
                 if not piece.startswith(head):
                     raise ValueError(f"segment {s}: block {kind}@{a} does not start with {head!r}: {piece[:40]!r}")
                 ids = self.tok(piece, add_special_tokens=False)["input_ids"]
@@ -76,7 +79,7 @@ class Renderer:
                     n = len(self.gen_prefix_ids)
                     if ids[:n] == self.gen_prefix_ids:
                         start = n
-                    elif ids[:n - 1] == self.gen_prefix_ids[:-1]:
+                    elif ids[: n - 1] == self.gen_prefix_ids[:-1]:
                         # empty reasoning: "<think>\n\n</think>" merges the newlines into one
                         # token; mask it and start the loss at </think>
                         try:
@@ -92,8 +95,7 @@ class Renderer:
                         raise ValueError("assistant block has no <|im_end|>") from err
                     for t in range(start, last + 1):
                         mask[t] = 1
-                blocks.append({"kind": kind, "ids": ids, "mask": mask, "msg_range": [a, b],
-                               "segment": s, "is_query": (kind == "user" and a == q)})
+                blocks.append({"kind": kind, "ids": ids, "mask": mask, "msg_range": [a, b], "segment": s, "is_query": (kind == "user" and a == q)})
             whole = self.tok(text, add_special_tokens=False)["input_ids"]
             cat = [t for b in blocks for t in b["ids"]]
             if whole != cat:
@@ -102,8 +104,7 @@ class Renderer:
         return out
 
 
-def make_windows(blocks: list[Block], window: int, overlap: int,
-                 max_header_frac: float = 0.9) -> tuple[list[dict[str, Any]], list[dict[str, int]]]:
+def make_windows(blocks: list[Block], window: int, overlap: int, max_header_frac: float = 0.9) -> tuple[list[dict[str, Any]], list[dict[str, int]]]:
     """Partition this segment's loss-bearing assistant blocks into windows:
     header (system + first user) + [<= overlap tokens of preceding blocks, masked;
     always incl. the segment's query block] + contiguous blocks from a loss block."""
@@ -124,7 +125,9 @@ def make_windows(blocks: list[Block], window: int, overlap: int,
         ctx, used = [], 0
         j = i - 1
         while j >= 0 and used + len(body[j]["ids"]) <= overlap:
-            ctx.insert(0, j); used += len(body[j]["ids"]); j -= 1
+            ctx.insert(0, j)
+            used += len(body[j]["ids"])
+            j -= 1
         if q_block is not None and q_block < i and q_block not in ctx:
             # the segment's own query must be visible: drop the oldest ctx blocks to make room
             ctx = [c for c in ctx if c > q_block]
@@ -149,18 +152,26 @@ def make_windows(blocks: list[Block], window: int, overlap: int,
         end = last_loss + 1
         ids, labels, loss_blocks = [], [], []
         for b in header:
-            ids += b["ids"]; labels += [IGNORE] * len(b["ids"])
+            ids += b["ids"]
+            labels += [IGNORE] * len(b["ids"])
         for c in ctx:
-            ids += body[c]["ids"]; labels += [IGNORE] * len(body[c]["ids"])
+            ids += body[c]["ids"]
+            labels += [IGNORE] * len(body[c]["ids"])
         for b_idx in range(i, end):
             b = body[b_idx]
             ids += b["ids"]
             labels += [t if m else IGNORE for t, m in zip(b["ids"], b["mask"], strict=True)]
             if has_loss[b_idx]:
                 loss_blocks.append(b_idx + 2)
-        windows.append({"input_ids": ids, "labels": labels, "n_tokens": len(ids),
-                        "n_loss_tokens": sum(1 for l in labels if l != IGNORE),
-                        "blocks": [i + 2, end + 2], "ctx_blocks": [c + 2 for c in ctx],
-                        "loss_blocks": loss_blocks, "header_tokens": header_len})
+        windows.append({
+            "input_ids": ids,
+            "labels": labels,
+            "n_tokens": len(ids),
+            "n_loss_tokens": sum(1 for l in labels if l != IGNORE),
+            "blocks": [i + 2, end + 2],
+            "ctx_blocks": [c + 2 for c in ctx],
+            "loss_blocks": loss_blocks,
+            "header_tokens": header_len,
+        })
         i = end
     return windows, skipped

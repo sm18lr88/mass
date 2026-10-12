@@ -11,6 +11,7 @@ student exactly like the teacher (1 GPU/replica, same kernels).
     quantize_fp8_blockwise.py --src <merged bf16 dir> --ref <official FP8 snapshot> --out <dir>
     quantize_fp8_blockwise.py --verify --src <bf16 parent> --ref <official FP8 snapshot>
 """
+
 import argparse
 import json
 import os
@@ -55,7 +56,8 @@ def verify(args):
     print(f"{len(keys)} quantized weights in reference")
     for k in keys[:6] + [k for k in keys if "layers.3.self_attn.q_proj" in k]:
         with safe_open(os.path.join(args.ref, ref_map[k]), framework="pt") as f:
-            q = f.get_tensor(k); s = f.get_tensor(k + "_scale_inv")
+            q = f.get_tensor(k)
+            s = f.get_tensor(k + "_scale_inv")
         with safe_open(os.path.join(args.src, src_map[k]), framework="pt") as f:
             w = f.get_tensor(k)
         deq = dequantize_block(q, s)
@@ -95,9 +97,12 @@ def convert(args):
             if (k + "_scale_inv") in ref_map:
                 w = get_src(k)
                 q, s = quantize_block(w)
-                out[k] = q.contiguous(); out[k + "_scale_inv"] = s.contiguous(); n_q += 1
+                out[k] = q.contiguous()
+                out[k + "_scale_inv"] = s.contiguous()
+                n_q += 1
             else:
-                out[k] = get_src(k).contiguous(); n_c += 1
+                out[k] = get_src(k).contiguous()
+                n_c += 1
         save_file(out, os.path.join(args.out, shard), metadata={"format": "pt"})
         print(f"wrote {shard}: {len(out)} tensors")
     for fn in os.listdir(args.ref):

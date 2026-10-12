@@ -1,5 +1,6 @@
 # Loads SFT windows, splits validation episodes, and draws deterministic task/role-balanced samples (torch-free).
 """Window loading and seeded samplers used by train_sft_lora.py."""
+
 import argparse
 import json
 import random
@@ -35,11 +36,12 @@ def load_windows(path: str, args: argparse.Namespace) -> list[Row]:
             if r["condition"] in args.exclude_condition:
                 continue
             if args.max_len:  # debug crop: keep the TAIL so label tokens survive
-                r["input_ids"] = r["input_ids"][-args.max_len:]
-                r["labels"] = r["labels"][-args.max_len:]
+                r["input_ids"] = r["input_ids"][-args.max_len :]
+                r["labels"] = r["labels"][-args.max_len :]
             if not any(l != IGNORE for l in r["labels"][1:]):
                 continue
-            r["_task"] = task_of(r); r["_rg"] = role_group(r)
+            r["_task"] = task_of(r)
+            r["_rg"] = role_group(r)
             rows.append(r)
     return rows
 
@@ -88,7 +90,10 @@ class TaskRoleSampler:
 
     def describe(self) -> str:
         return "task-uniform over %s; role P(orch)=%.4f; per task orch/nonmain windows: %s" % (
-            self.tasks, self.p_orch, {t: (len(self.by[t]["orch"]), len(self.by[t]["nonmain"])) for t in self.tasks})
+            self.tasks,
+            self.p_orch,
+            {t: (len(self.by[t]["orch"]), len(self.by[t]["nonmain"])) for t in self.tasks},
+        )
 
     def draw(self, rank: int, step: int) -> int:
         rng = random.Random(f"{self.seed}-{rank}-{step}")

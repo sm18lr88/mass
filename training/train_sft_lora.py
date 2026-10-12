@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # CLI: LoRA SFT of the Qwen3.5/3.6 model (FSDP2 / pipeline / pp_ddp) on rendered windows with validation.
 """LoRA SFT with task-uniform, role-balanced sampling and validation loss."""
+
 import argparse
 import json
 import math
@@ -14,7 +15,7 @@ if "pp_ddp" in sys.argv:  # each rank gets its own slice of GPUs for a naive dev
     _lr = int(os.environ.get("LOCAL_RANK", "0"))
     _vis = os.environ.get("CUDA_VISIBLE_DEVICES")
     _all = _vis.split(",") if _vis else [str(i) for i in range(8)]
-    os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(_all[_lr * _g:(_lr + 1) * _g])
+    os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(_all[_lr * _g : (_lr + 1) * _g])
 
 import torch
 import torch.nn as nn
@@ -51,9 +52,13 @@ def parse_args():
     ap.add_argument("--lora-r", type=int, default=64)
     ap.add_argument("--lora-alpha", type=int, default=128)
     ap.add_argument("--lora-dropout", type=float, default=0.05)
-    ap.add_argument("--target-modules", default=r".*language_model.*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj|in_proj_qkv|in_proj_z|out_proj)$")
+    ap.add_argument(
+        "--target-modules", default=r".*language_model.*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj|in_proj_qkv|in_proj_z|out_proj)$"
+    )
     ap.add_argument("--sampler", choices=["condition", "task_role"], default="task_role")
-    ap.add_argument("--p-orch", type=float, default=1.0 / 3.0, help="task_role sampler: probability of drawing an orchestrator window when the task has both roles")
+    ap.add_argument(
+        "--p-orch", type=float, default=1.0 / 3.0, help="task_role sampler: probability of drawing an orchestrator window when the task has both roles"
+    )
     ap.add_argument("--cond-weight", action="append", default=[], help="condition sampler: condition=weight (default 1)")
     ap.add_argument("--exclude-condition", action="append", default=[])
     ap.add_argument("--val-episode-regex", default=None, help="windows whose episode matches are held out")
@@ -73,7 +78,11 @@ def parse_args():
     ap.add_argument("--dry-run-steps", type=int, default=None, help="stop after N optimizer steps")
     ap.add_argument("--check-loss", action="store_true", help="debug: compare chunked CE with full-logit CE on the first window")
     ap.add_argument("--no-fla", action="store_true", help="force the torch fallback for the gated-delta-rule kernels (auto on CPU)")
-    ap.add_argument("--autocast-bf16", action="store_true", help="run forward/backward under bf16 autocast (LoRA branch computes in bf16; fp32 master adapters stay in the optimizer)")
+    ap.add_argument(
+        "--autocast-bf16",
+        action="store_true",
+        help="run forward/backward under bf16 autocast (LoRA branch computes in bf16; fp32 master adapters stay in the optimizer)",
+    )
     return ap.parse_args()
 
 
@@ -90,7 +99,7 @@ def build_model(args, rank):
         cfg = AutoConfig.from_pretrained(args.tiny_config)
         torch.manual_seed(0)
         model = Qwen3_5ForConditionalGeneration(cfg).to(torch.bfloat16)
-        log(f"tiny model params: {sum(p.numel() for p in model.parameters())/1e6:.1f}M", rank)
+        log(f"tiny model params: {sum(p.numel() for p in model.parameters()) / 1e6:.1f}M", rank)
     else:
         kw = dict(dtype=torch.bfloat16, attn_implementation=args.attn)
         if args.parallel in ("pp", "pp_ddp"):
@@ -104,8 +113,9 @@ def build_model(args, rank):
     if args.grad_ckpt:
         model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
         model.enable_input_require_grads()
-    lcfg = LoraConfig(r=args.lora_r, lora_alpha=args.lora_alpha, lora_dropout=args.lora_dropout,
-                      target_modules=args.target_modules, bias="none", task_type="CAUSAL_LM")
+    lcfg = LoraConfig(
+        r=args.lora_r, lora_alpha=args.lora_alpha, lora_dropout=args.lora_dropout, target_modules=args.target_modules, bias="none", task_type="CAUSAL_LM"
+    )
     model = get_peft_model(model, lcfg)
     if rank == 0:
         model.print_trainable_parameters()
@@ -115,10 +125,12 @@ def build_model(args, rank):
 def shard_fsdp2(model, device):
     from torch.distributed.device_mesh import init_device_mesh
     from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
+
     world = torch.distributed.get_world_size()
     mesh = init_device_mesh("cuda", (world,))
     mp = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32)
     from transformers.models.qwen3_5.modeling_qwen3_5 import Qwen3_5DecoderLayer, Qwen3_5VisionBlock
+
     n = 0
     for m in model.modules():
         if isinstance(m, (Qwen3_5DecoderLayer, Qwen3_5VisionBlock)):
@@ -138,9 +150,9 @@ def chunked_ce(hidden, lm_head_w, labels, chunk):
         return F.cross_entropy(logits, y, ignore_index=IGNORE, reduction="sum")
 
     for i in range(0, T, chunk):
-        y = labels[i:i + chunk]
+        y = labels[i : i + chunk]
         if (y != IGNORE).any():
-            total = total + checkpoint(f, hidden[i:i + chunk], y, use_reentrant=False)
+            total = total + checkpoint(f, hidden[i : i + chunk], y, use_reentrant=False)
     return total
 
 
@@ -174,14 +186,17 @@ def save_checkpoint(model, opt, args, step, out_dir, rank, extra):
     if rank == 0:
         os.makedirs(out_dir, exist_ok=True)
         from safetensors.torch import save_file
+
         save_file(sd, os.path.join(out_dir, "lora_state_dict.safetensors"))
         try:
             from peft import get_peft_model_state_dict  # noqa: F401
+
             adapter_dir = os.path.join(out_dir, "adapter")
             os.makedirs(adapter_dir, exist_ok=True)
             model.peft_config["default"].save_pretrained(adapter_dir)
-            peft_sd = {k.replace("._fsdp_wrapped_module", "").replace(".lora_A.default.", ".lora_A.").replace(".lora_B.default.", ".lora_B."): v
-                       for k, v in sd.items()}
+            peft_sd = {
+                k.replace("._fsdp_wrapped_module", "").replace(".lora_A.default.", ".lora_A.").replace(".lora_B.default.", ".lora_B."): v for k, v in sd.items()
+            }
             save_file(peft_sd, os.path.join(adapter_dir, "adapter_model.safetensors"))
         except Exception as e:  # noqa: BLE001
             print(f"adapter export failed: {e!r}", file=sys.stderr)
@@ -196,6 +211,7 @@ def save_checkpoint(model, opt, args, step, out_dir, rank, extra):
 
 def load_lora_into(model, path):
     from safetensors.torch import load_file
+
     sd = load_file(path)
     own = model.state_dict()
     n = 0
@@ -208,6 +224,7 @@ def load_lora_into(model, path):
                 continue
             if hasattr(p, "full_tensor"):
                 from torch.distributed.tensor import distribute_tensor
+
                 dt = distribute_tensor(v.to(p.dtype), p.device_mesh, p.placements)
                 p.copy_(dt)
             else:
@@ -247,7 +264,10 @@ def main():
     if args.val_data:
         val_rows = load_windows(args.val_data, args)
     counts = Counter(r["condition"] for r in train_rows)
-    log(f"windows: train={len(train_rows)} val={len(val_rows)} by condition={dict(counts)} by role={dict(Counter(r['_rg'] for r in train_rows))} by task={dict(Counter(r['_task'] for r in train_rows))}", rank)
+    log(
+        f"windows: train={len(train_rows)} val={len(val_rows)} by condition={dict(counts)} by role={dict(Counter(r['_rg'] for r in train_rows))} by task={dict(Counter(r['_task'] for r in train_rows))}",
+        rank,
+    )
     if args.sampler == "task_role":
         sampler = TaskRoleSampler(train_rows, args.p_orch, args.seed)
     else:
@@ -294,10 +314,21 @@ def main():
         if os.path.exists(opt_p):
             opt.load_state_dict(torch.load(opt_p, map_location="cpu"))
             resumed_opt = True
-        log(f"resumed {n} lora tensors from {args.resume} at step {start_step} (optimizer state {'restored' if resumed_opt else 'RESET: no optimizer.pt'})", rank)
+        log(
+            f"resumed {n} lora tensors from {args.resume} at step {start_step} (optimizer state {'restored' if resumed_opt else 'RESET: no optimizer.pt'})",
+            rank,
+        )
         if rank == 0:
             with open(os.path.join(args.out, "resume_log.jsonl"), "a", encoding="utf-8") as f:
-                f.write(json.dumps({"resumed_from": args.resume, "step": start_step, "optimizer_restored": resumed_opt, "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}) + "\n")
+                f.write(
+                    json.dumps({
+                        "resumed_from": args.resume,
+                        "step": start_step,
+                        "optimizer_restored": resumed_opt,
+                        "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    })
+                    + "\n"
+                )
 
     if args.check_loss and rank == 0 and not dist:
         with torch.no_grad():
@@ -308,13 +339,17 @@ def main():
             logits = F.linear(hid, lm_head_w.to(hid.device, hid.dtype)).float()
             y = torch.tensor(b["labels"][1:], device=logits.device)
             ref = F.cross_entropy(logits, y, ignore_index=IGNORE, reduction="sum")
-            log(f"check-loss: chunked={ls.item():.6f} full={ref.item():.6f} tokens={nt} rel_diff={(abs(ls.item()-ref.item())/max(1e-9,ref.item())):.2e}", rank)
+            log(
+                f"check-loss: chunked={ls.item():.6f} full={ref.item():.6f} tokens={nt} rel_diff={(abs(ls.item() - ref.item()) / max(1e-9, ref.item())):.2e}",
+                rank,
+            )
     log(f"training: total_steps={total_steps} windows/step={per_step} lr={args.lr} r={args.lora_r} alpha={args.lora_alpha}", rank)
     hist = open(os.path.join(args.out, "train_log.jsonl"), "a", encoding="utf-8") if rank == 0 else None
     expo = open(os.path.join(args.out, "exposure_log.jsonl"), "a", encoding="utf-8") if rank == 0 else None
 
     # validation keys: (episode, role) so per-episode / per-role / per-task losses can be reported
-    vkeys = sorted({(r["episode"], r["_rg"]) for r in val_rows}); vidx = {k: i for i, k in enumerate(vkeys)}
+    vkeys = sorted({(r["episode"], r["_rg"]) for r in val_rows})
+    vidx = {k: i for i, k in enumerate(vkeys)}
     vtask = {r["episode"]: r["_task"] for r in val_rows}
 
     def run_validation(step_label):
@@ -330,29 +365,46 @@ def main():
                 r = val_rows[i] if real else val_rows[0]
                 ls, nt = forward_loss(model, lm_head_w, r, args, device)
                 if real:
-                    vs += ls.item(); vt += nt
+                    vs += ls.item()
+                    vt += nt
                     k = vidx[(r["episode"], r["_rg"])]
-                    per[k, 0] += ls.item(); per[k, 1] += nt
+                    per[k, 0] += ls.item()
+                    per[k, 1] += nt
         vstats = torch.tensor([vs, vt], dtype=torch.float64, device=device)
         if dist:
-            torch.distributed.all_reduce(vstats); torch.distributed.all_reduce(per)
+            torch.distributed.all_reduce(vstats)
+            torch.distributed.all_reduce(per)
         by_ep, by_role, by_task = defaultdict(lambda: [0.0, 0]), defaultdict(lambda: [0.0, 0]), defaultdict(lambda: [0.0, 0])
         for (ep, rg), k in vidx.items():
             s, n = per[k, 0].item(), per[k, 1].item()
-            by_ep[ep][0] += s; by_ep[ep][1] += n; by_role[rg][0] += s; by_role[rg][1] += n; by_task[vtask[ep]][0] += s; by_task[vtask[ep]][1] += n
+            by_ep[ep][0] += s
+            by_ep[ep][1] += n
+            by_role[rg][0] += s
+            by_role[rg][1] += n
+            by_task[vtask[ep]][0] += s
+            by_task[vtask[ep]][1] += n
         fmt = lambda d: {str(k): round(v[0] / max(1.0, v[1]), 4) for k, v in d.items()}
-        vrec = {"step": step_label, "val_loss": (vstats[0] / max(1.0, vstats[1])).item(), "val_tokens": int(vstats[1].item()),
-                "val_by_role": fmt(by_role), "val_by_task": fmt(by_task), "val_per_episode": fmt(by_ep), "val_seconds": round(time.time() - t0v, 1)}
+        vrec = {
+            "step": step_label,
+            "val_loss": (vstats[0] / max(1.0, vstats[1])).item(),
+            "val_tokens": int(vstats[1].item()),
+            "val_by_role": fmt(by_role),
+            "val_by_task": fmt(by_task),
+            "val_per_episode": fmt(by_ep),
+            "val_seconds": round(time.time() - t0v, 1),
+        }
         log(json.dumps(vrec), rank)
         if hist:
-            hist.write(json.dumps(vrec) + "\n"); hist.flush()
+            hist.write(json.dumps(vrec) + "\n")
+            hist.flush()
         model.train()
 
     model.train()
     if val_rows and args.val_at_start and start_step == 0:
         run_validation(0)
     t0 = time.time()
-    exposure = Counter(); uniq = set()
+    exposure = Counter()
+    uniq = set()
     for step in range(start_step, total_steps):
         for g in opt.param_groups:
             g["lr"] = lr_at(step)
@@ -376,7 +428,8 @@ def main():
             off = 0
             for g in grads:
                 n = g.numel()
-                g.copy_(flat[off:off + n].view_as(g).to(g.device, g.dtype)); off += n
+                g.copy_(flat[off : off + n].view_as(g).to(g.device, g.dtype))
+                off += n
             del flat
         gn = torch.nn.utils.clip_grad_norm_(params, args.max_grad_norm)
         opt.step()
@@ -392,26 +445,53 @@ def main():
         mean_loss = (stats[0] / max(1.0, stats[1])).item()
         if rank == 0:
             for idx, t, rg, nt in all_drawn:
-                exposure[(t, rg, "draws")] += 1; exposure[(t, rg, "tokens")] += nt; uniq.add(idx)
+                exposure[(t, rg, "draws")] += 1
+                exposure[(t, rg, "tokens")] += nt
+                uniq.add(idx)
             if expo:
-                expo.write(json.dumps({"step": step + 1, "rows": [d[0] for d in all_drawn], "task_role": [f"{d[1]}:{d[2]}" for d in all_drawn], "tokens": [d[3] for d in all_drawn]}) + "\n"); expo.flush()
+                expo.write(
+                    json.dumps({
+                        "step": step + 1,
+                        "rows": [d[0] for d in all_drawn],
+                        "task_role": [f"{d[1]}:{d[2]}" for d in all_drawn],
+                        "tokens": [d[3] for d in all_drawn],
+                    })
+                    + "\n"
+                )
+                expo.flush()
         if (step + 1) % args.log_every == 0:
-            rec = {"step": step + 1, "loss": mean_loss, "lr": lr_at(step), "grad_norm": float(gn),
-                   "tokens": int(stats[1].item()), "elapsed_s": round(time.time() - t0, 1)}
+            rec = {
+                "step": step + 1,
+                "loss": mean_loss,
+                "lr": lr_at(step),
+                "grad_norm": float(gn),
+                "tokens": int(stats[1].item()),
+                "elapsed_s": round(time.time() - t0, 1),
+            }
             if torch.cuda.is_available():
                 rec["peak_mem_gib"] = round(torch.cuda.max_memory_allocated() / 2**30, 1)
                 rec["peak_reserved_gib"] = round(torch.cuda.max_memory_reserved() / 2**30, 1)
             log(json.dumps(rec), rank)
             if hist:
-                hist.write(json.dumps(rec) + "\n"); hist.flush()
+                hist.write(json.dumps(rec) + "\n")
+                hist.flush()
         if val_rows and ((step + 1) % args.val_every == 0 or step + 1 == total_steps):
             run_validation(step + 1)
         if (step + 1) % args.save_every == 0 or step + 1 == total_steps:
-            summ = {"draws_since_start_or_resume": {f"{t}:{rg}": exposure[(t, rg, "draws")] for (t, rg, k) in list(exposure) if k == "draws"},
-                    "tokens_since_start_or_resume": {f"{t}:{rg}": exposure[(t, rg, "tokens")] for (t, rg, k) in list(exposure) if k == "tokens"},
-                    "unique_windows_since_start_or_resume": len(uniq)}
-            save_checkpoint(model, opt, args, step + 1, os.path.join(args.out, f"step_{step + 1:05d}"), rank,
-                            {"lr": lr_at(step), "loss": mean_loss, "total_steps": total_steps, "exposure": summ})
+            summ = {
+                "draws_since_start_or_resume": {f"{t}:{rg}": exposure[(t, rg, "draws")] for (t, rg, k) in list(exposure) if k == "draws"},
+                "tokens_since_start_or_resume": {f"{t}:{rg}": exposure[(t, rg, "tokens")] for (t, rg, k) in list(exposure) if k == "tokens"},
+                "unique_windows_since_start_or_resume": len(uniq),
+            }
+            save_checkpoint(
+                model,
+                opt,
+                args,
+                step + 1,
+                os.path.join(args.out, f"step_{step + 1:05d}"),
+                rank,
+                {"lr": lr_at(step), "loss": mean_loss, "total_steps": total_steps, "exposure": summ},
+            )
         if args.dry_run_steps and step + 1 - start_step >= args.dry_run_steps:
             log("dry run complete", rank)
             break

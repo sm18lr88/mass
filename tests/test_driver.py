@@ -2,12 +2,12 @@
 import contextlib
 import io
 import json
-from pathlib import Path
 import re
 import shlex
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from mass import collection, episodes, pipeline, process, reporting, selection, sft
@@ -138,8 +138,7 @@ class PlanOutputTests(unittest.TestCase):
                 buffer = io.StringIO()
                 with contextlib.redirect_stdout(buffer):
                     pipeline.main(["plan", "--config", str(ROOT / f"configs/{name}.json")])
-                self.assertEqual(normalized_plan(buffer.getvalue()),
-                                 normalized_plan(baseline.read_text(encoding="utf-8")))
+                self.assertEqual(normalized_plan(buffer.getvalue()), normalized_plan(baseline.read_text(encoding="utf-8")))
                 self.assertIn(shlex.quote(sys.executable), buffer.getvalue())
 
     def test_plan_prints_validated_config_json(self):

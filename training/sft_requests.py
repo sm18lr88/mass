@@ -5,6 +5,7 @@ Imported as ``training.sft_requests``: the training scripts append the repositor
 ``sys.path`` before importing (see ``training/__init__.py``), so the same module object is used
 when a script runs by path and when tests import it.
 """
+
 import copy
 import gzip
 import hashlib
@@ -68,9 +69,10 @@ def response_to_replay_message(resp_msg: Message) -> Message:
         m["reasoning_content"] = resp_msg["reasoning_content"]
     tcs = resp_msg.get("tool_calls") or []
     if tcs:
-        m["tool_calls"] = [{"id": t.get("id"), "type": t.get("type") or "function",
-                            "function": {"name": t["function"]["name"],
-                                         "arguments": t["function"]["arguments"]}} for t in tcs]
+        m["tool_calls"] = [
+            {"id": t.get("id"), "type": t.get("type") or "function", "function": {"name": t["function"]["name"], "arguments": t["function"]["arguments"]}}
+            for t in tcs
+        ]
     return m
 
 

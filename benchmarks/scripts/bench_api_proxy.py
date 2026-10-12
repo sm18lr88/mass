@@ -16,6 +16,7 @@ tool schemas, message history incl. reasoning replay, compression) so
 training samples can be rendered from the very same messages the served
 student will see. Nothing is modified in either direction.
 """
+
 import argparse
 import asyncio
 import itertools
@@ -26,14 +27,22 @@ import time
 from aiohttp import ClientSession, ClientTimeout, web
 
 HOP_BY_HOP = {
-    "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
-    "te", "trailers", "transfer-encoding", "upgrade", "host", "content-length",
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailers",
+    "transfer-encoding",
+    "upgrade",
+    "host",
+    "content-length",
 }
 
 
 def assemble_sse(raw: bytes) -> dict:
     """Reassemble an OpenAI chat.completion.chunk SSE stream into one message."""
-    choices = {}
+    choices: dict[int, dict] = {}
     meta = {"id": None, "model": None, "created": None}
     usage = None
     n_chunks = 0
@@ -58,10 +67,18 @@ def assemble_sse(raw: bytes) -> dict:
             usage = obj["usage"]
         for ch in obj.get("choices") or []:
             idx = ch.get("index", 0)
-            st = choices.setdefault(idx, {
-                "index": idx, "role": None, "content": [], "reasoning_content": [],
-                "tool_calls": {}, "finish_reason": None, "stop_reason": None,
-            })
+            st = choices.setdefault(
+                idx,
+                {
+                    "index": idx,
+                    "role": None,
+                    "content": [],
+                    "reasoning_content": [],
+                    "tool_calls": {},
+                    "finish_reason": None,
+                    "stop_reason": None,
+                },
+            )
             delta = ch.get("delta") or {}
             if delta.get("role"):
                 st["role"] = delta["role"]
@@ -74,8 +91,7 @@ def assemble_sse(raw: bytes) -> dict:
                 st["reasoning_content"].append(rc)
             for tc in delta.get("tool_calls") or []:
                 ti = tc.get("index", 0)
-                t = st["tool_calls"].setdefault(ti, {"index": ti, "id": None, "type": None,
-                                                      "name": None, "arguments": []})
+                t = st["tool_calls"].setdefault(ti, {"index": ti, "id": None, "type": None, "name": None, "arguments": []})
                 if tc.get("id"):
                     t["id"] = tc["id"]
                 if tc.get("type"):
@@ -96,7 +112,9 @@ def assemble_sse(raw: bytes) -> dict:
         for ti in sorted(st["tool_calls"]):
             t = st["tool_calls"][ti]
             tool_calls.append({
-                "index": ti, "id": t["id"], "type": t["type"] or "function",
+                "index": ti,
+                "id": t["id"],
+                "type": t["type"] or "function",
                 "function": {"name": t["name"], "arguments": "".join(t["arguments"])},
             })
         msg = {
@@ -105,10 +123,8 @@ def assemble_sse(raw: bytes) -> dict:
             "reasoning_content": "".join(st["reasoning_content"]) if st["reasoning_content"] else None,
             "tool_calls": tool_calls or None,
         }
-        out_choices.append({"index": idx, "message": msg, "finish_reason": st["finish_reason"],
-                            "stop_reason": st["stop_reason"]})
-    return {**meta, "object": "chat.completion.reassembled", "choices": out_choices,
-            "usage": usage, "n_chunks": n_chunks, "n_bad_chunks": n_bad}
+        out_choices.append({"index": idx, "message": msg, "finish_reason": st["finish_reason"], "stop_reason": st["stop_reason"]})
+    return {**meta, "object": "chat.completion.reassembled", "choices": out_choices, "usage": usage, "n_chunks": n_chunks, "n_bad_chunks": n_bad}
 
 
 def write_log(app: web.Application, rec: dict) -> None:
@@ -124,9 +140,12 @@ async def handle(request: web.Request) -> web.StreamResponse:
     headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP}
     t0 = time.time()
     rec = {
-        "ts_start": t0, "ts_start_iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t0)),
-        "method": request.method, "path": request.rel_url.path_qs,
-        "seq": next(app["seq"]), "request_bytes": len(body),
+        "ts_start": t0,
+        "ts_start_iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t0)),
+        "method": request.method,
+        "path": request.rel_url.path_qs,
+        "seq": next(app["seq"]),
+        "request_bytes": len(body),
     }
     if body:
         try:
@@ -139,12 +158,10 @@ async def handle(request: web.Request) -> web.StreamResponse:
     session: ClientSession = app["session"]
     out: web.StreamResponse | None = None
     try:
-        async with session.request(request.method, url, headers=headers, data=body,
-                                   allow_redirects=False) as resp:
+        async with session.request(request.method, url, headers=headers, data=body, allow_redirects=False) as resp:
             resp_headers = {k: v for k, v in resp.headers.items() if k.lower() not in HOP_BY_HOP}
             rec["status"] = resp.status
-            rec["response_headers"] = {k: v for k, v in resp_headers.items()
-                                       if k.lower() in ("content-type", "x-request-id")}
+            rec["response_headers"] = {k: v for k, v in resp_headers.items() if k.lower() in ("content-type", "x-request-id")}
             ctype = resp.headers.get("Content-Type", "")
             if "text/event-stream" in ctype:
                 out = web.StreamResponse(status=resp.status, headers=resp_headers)
@@ -192,8 +209,7 @@ async def handle(request: web.Request) -> web.StreamResponse:
 
 
 async def on_startup(app):
-    app["session"] = ClientSession(timeout=ClientTimeout(total=None, sock_connect=30, sock_read=None),
-                                   auto_decompress=False)
+    app["session"] = ClientSession(timeout=ClientTimeout(total=None, sock_connect=30, sock_read=None), auto_decompress=False)
 
 
 async def on_cleanup(app):
@@ -210,7 +226,7 @@ def main():
     ap.add_argument("--keep-raw-sse", action="store_true")
     args = ap.parse_args()
 
-    app = web.Application(client_max_size=4 * 1024 ** 3)
+    app = web.Application(client_max_size=4 * 1024**3)
     app["upstream"] = args.upstream.rstrip("/")
     app["log_fh"] = open(args.log, "a", encoding="utf-8")
     app["keep_raw_sse"] = args.keep_raw_sse

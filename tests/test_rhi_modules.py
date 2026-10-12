@@ -41,14 +41,29 @@ def arb(champ, v, winner):
 class HistoryAndProvenanceTests(unittest.TestCase):
     def setUp(self):
         self.prev, self.cur = Path("/runs/v0").resolve(), Path("/runs/v1").resolve()
-        self.row = {"key": "v0_vs_v1", "version_a": 0, "version_b": 1, "llm_backend": BACKEND_LOCAL_VLLM,
-                    "model": "m", "repo_a": str(self.prev), "repo_b": str(self.cur),
-                    "base_url": "http://127.0.0.1:8001/v1/", "call_metrics": {"estimated_cost_usd": 0.0}}
+        self.row = {
+            "key": "v0_vs_v1",
+            "version_a": 0,
+            "version_b": 1,
+            "llm_backend": BACKEND_LOCAL_VLLM,
+            "model": "m",
+            "repo_a": str(self.prev),
+            "repo_b": str(self.cur),
+            "base_url": "http://127.0.0.1:8001/v1/",
+            "call_metrics": {"estimated_cost_usd": 0.0},
+        }
 
     def errors(self, row, **overrides):
-        kwargs = dict(comparison_key="v0_vs_v1", prev_version=0, current_version=1, prev_repo=self.prev,
-                      current_repo=self.cur, llm_backend=BACKEND_LOCAL_VLLM, model="m",
-                      base_url="http://127.0.0.1:8001/v1")
+        kwargs = dict(
+            comparison_key="v0_vs_v1",
+            prev_version=0,
+            current_version=1,
+            prev_repo=self.prev,
+            current_repo=self.cur,
+            llm_backend=BACKEND_LOCAL_VLLM,
+            model="m",
+            base_url="http://127.0.0.1:8001/v1",
+        )
         kwargs.update(overrides)
         return _adjacent_history_provenance_errors(row, **kwargs)
 
@@ -88,8 +103,7 @@ class ChampionTests(unittest.TestCase):
 
     def test_scoreboard_marks_proven_champion(self):
         rows = [base(0, "A"), base(1, "B"), base(2, "tie")]
-        self.assertEqual(_baseline_scoreboard(rows, 3, 1, True),
-                         "Record vs no_harness: v0 L · v1 W★ · v2 T · v3 ?")
+        self.assertEqual(_baseline_scoreboard(rows, 3, 1, True), "Record vs no_harness: v0 L · v1 W★ · v2 T · v3 ?")
         self.assertNotIn("★", _baseline_scoreboard(rows, 3, 0, False))
 
 
@@ -97,20 +111,23 @@ class DesignAndUrlTests(unittest.TestCase):
     def test_normalize_trims_copied_tail_and_late_end_marker(self):
         design = f"{DEFAULT_START_MARKER}\nAgent A."
         after = f"{DEFAULT_END_MARKER} and log everything."
-        self.assertEqual(_normalize_generated_design_block(f"{design}\n\n{after}\nmore", start_marker=DEFAULT_START_MARKER,
-                                                           end_marker=DEFAULT_END_MARKER, after_design=after), design)
+        self.assertEqual(
+            _normalize_generated_design_block(
+                f"{design}\n\n{after}\nmore", start_marker=DEFAULT_START_MARKER, end_marker=DEFAULT_END_MARKER, after_design=after
+            ),
+            design,
+        )
         late = f"{design}\n{DEFAULT_END_MARKER}"
-        self.assertEqual(_normalize_generated_design_block(late, start_marker=DEFAULT_START_MARKER,
-                                                           end_marker=DEFAULT_END_MARKER, after_design=""), design)
+        self.assertEqual(_normalize_generated_design_block(late, start_marker=DEFAULT_START_MARKER, end_marker=DEFAULT_END_MARKER, after_design=""), design)
 
     def test_normalize_requires_start_marker(self):
         with self.assertRaises(RuntimeError):
-            _normalize_generated_design_block("no marker", start_marker=DEFAULT_START_MARKER,
-                                              end_marker=DEFAULT_END_MARKER, after_design="")
+            _normalize_generated_design_block("no marker", start_marker=DEFAULT_START_MARKER, end_marker=DEFAULT_END_MARKER, after_design="")
 
     def test_fixed_agent_limit_matches(self):
-        self.assertEqual(_fixed_agent_limit_matches("Use at most 3 recalls. Tool calls are limited to 5."),
-                         ["at most 3 recalls", "Tool calls are limited to 5"])
+        self.assertEqual(
+            _fixed_agent_limit_matches("Use at most 3 recalls. Tool calls are limited to 5."), ["at most 3 recalls", "Tool calls are limited to 5"]
+        )
         self.assertEqual(_fixed_agent_limit_matches("Iterate until acceptance gates pass."), [])
 
     def test_loopback_base_url(self):
@@ -132,6 +149,7 @@ class DesignAndUrlTests(unittest.TestCase):
 class OptimizerPathTests(unittest.TestCase):
     def test_adjacent_judge_then_json_proposal_writes_next_version(self):
         from harness_improvement import iterate_multi_agent_prompt as rhi
+
         calls = []
 
         class FakeBackend:
@@ -158,12 +176,27 @@ class OptimizerPathTests(unittest.TestCase):
             for v in (0, 1):
                 (out / f"versions/multi_agent_design_v{v}.txt").write_text(template.design_block, encoding="utf-8")
                 (root / f"v{v}/query51_ourTeam").mkdir(parents=True)
-            argv = ["rhi", "--query-file", str(prompt), "--current-version", "1", "--out-dir", str(out),
-                    "--current-repo", str(root / "v1/query51_ourTeam"), "--previous-repo", str(root / "v0/query51_ourTeam"),
-                    "--llm-backend", "local-vllm", "--require-local-vllm", "--model", "fixture-model",
-                    "--strict-adjacent-history-provenance", "--forbid-fixed-agent-limits"]
-            with patch.object(sys, "argv", argv), patch.object(rhi, "JsonLLMBackend", FakeBackend), \
-                    patch("builtins.print"):
+            argv = [
+                "rhi",
+                "--query-file",
+                str(prompt),
+                "--current-version",
+                "1",
+                "--out-dir",
+                str(out),
+                "--current-repo",
+                str(root / "v1/query51_ourTeam"),
+                "--previous-repo",
+                str(root / "v0/query51_ourTeam"),
+                "--llm-backend",
+                "local-vllm",
+                "--require-local-vllm",
+                "--model",
+                "fixture-model",
+                "--strict-adjacent-history-provenance",
+                "--forbid-fixed-agent-limits",
+            ]
+            with patch.object(sys, "argv", argv), patch.object(rhi, "JsonLLMBackend", FakeBackend), patch("builtins.print"):
                 self.assertEqual(rhi.main(), 0)
             self.assertEqual(len(calls), 2)
             next_design = (out / "versions/multi_agent_design_v2.txt").read_text(encoding="utf-8")

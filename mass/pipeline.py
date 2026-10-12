@@ -1,27 +1,46 @@
 # Stage CLI: argument parsing, task-set resolution, and the explicit stage dispatch table.
 """Portable orchestration of RHI -> post-training -> the next MASS cycle."""
+
 import argparse
-from collections.abc import Callable
 import json
-from pathlib import Path
 import shlex
+from collections.abc import Callable
+from pathlib import Path
 
 from . import collection, reporting, selection, sft
-from .config import freeze_config, query_name, run_root, validate, workflow_prompt
-from .episodes import completed, episode
-from .io import ROOT, read_json
-from .selection import tournament_pairs
-from .sft import best_checkpoint, training_command
 
 # Re-exported stage functions keep `pipeline.<stage>` call sites working.
 from .collection import collect, search
+from .config import freeze_config, query_name, run_root, validate, workflow_prompt
+from .episodes import completed, episode
+from .io import ROOT, read_json
 from .reporting import report, rollout
-from .selection import rank, select
-from .sft import export, render, train
+from .selection import rank, select, tournament_pairs
+from .sft import best_checkpoint, export, render, train, training_command
 
-__all__ = ["STAGES", "best_checkpoint", "collect", "completed", "episode", "export", "freeze_config",
-           "main", "query_name", "rank", "render", "report", "rollout", "run_root", "search", "select",
-           "tournament_pairs", "train", "training_command", "validate", "workflow_prompt"]
+__all__ = [
+    "STAGES",
+    "best_checkpoint",
+    "collect",
+    "completed",
+    "episode",
+    "export",
+    "freeze_config",
+    "main",
+    "query_name",
+    "rank",
+    "render",
+    "report",
+    "rollout",
+    "run_root",
+    "search",
+    "select",
+    "tournament_pairs",
+    "train",
+    "training_command",
+    "validate",
+    "workflow_prompt",
+]
 
 
 def plan(c: dict) -> None:
@@ -79,9 +98,13 @@ def main(argv: list[str] | None = None) -> None:
         STAGES["plan"](c, [], args, parser)
         return
     freeze_config(c)
-    tasks = args.tasks or (c["tasks"]["train"] if args.stage in ("collect", "rank") else
-                          c["tasks"][args.split] if args.split != "all" else
-                          c["tasks"]["train_candidates"] + c["tasks"]["test"])
+    tasks = args.tasks or (
+        c["tasks"]["train"]
+        if args.stage in ("collect", "rank")
+        else c["tasks"][args.split]
+        if args.split != "all"
+        else c["tasks"]["train_candidates"] + c["tasks"]["test"]
+    )
     if not set(tasks) <= set(c["tasks"]["train_candidates"] + c["tasks"]["test"]):
         parser.error("Unknown task ID")
     STAGES[args.stage](c, tasks, args, parser)

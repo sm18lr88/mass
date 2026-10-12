@@ -62,8 +62,17 @@ def render_protocol_outputs(base: Path) -> dict[str, str]:
     ba = build_judge_bundle(memory_root=ra, task_row=TASK, log_path=ra / "workflow.log")
     bb = build_judge_bundle(memory_root=rb, task_row=TASK, log_path=None)
     bt = build_judge_bundle(
-        memory_root=ra, task_row=TASK, log_path=ra / "workflow.log", report_max_tokens=300, json_max_tokens=5,
-        code_max_tokens=50, report_max_chars=None, tree_max_files=12, tree_max_depth=2, log_head=100, log_tail=100,
+        memory_root=ra,
+        task_row=TASK,
+        log_path=ra / "workflow.log",
+        report_max_tokens=300,
+        json_max_tokens=5,
+        code_max_tokens=50,
+        report_max_chars=None,
+        tree_max_files=12,
+        tree_max_depth=2,
+        log_head=100,
+        log_tail=100,
     )
     out = {
         "bundle_a": bundle_to_user_message(ba),
@@ -163,7 +172,7 @@ class TokenBudgetTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             write(Path(tmp) / "a.md", "é" * 100)
             fr = read_text_file(Path(tmp), "a.md", max_chars=10)
-            self.assertIsNotNone(fr)
+            assert fr is not None
             self.assertTrue(fr.truncated)
             self.assertEqual(fr.content, "é" * 5 + "\n\n[... middle omitted ...]\n\n" + "é" * 5)
             self.assertIsNone(read_text_file(Path(tmp), "missing.md", max_chars=10))
@@ -189,8 +198,7 @@ class JsonCandidateTests(unittest.TestCase):
 def _bundles(root: Path):
     make_workspace(root / "a", "A")
     make_workspace(root / "b", "B")
-    return (build_judge_bundle(memory_root=root / "a", task_row=TASK, log_path=None),
-            build_judge_bundle(memory_root=root / "b", task_row=TASK, log_path=None))
+    return (build_judge_bundle(memory_root=root / "a", task_row=TASK, log_path=None), build_judge_bundle(memory_root=root / "b", task_row=TASK, log_path=None))
 
 
 class RunPairwiseJudgeTests(TempDirCase):
@@ -224,7 +232,9 @@ class RunPairwiseJudgeTests(TempDirCase):
         ba, bb = _bundles(self.root)
         message = types.SimpleNamespace(
             content=[types.SimpleNamespace(type="text", text='```json\n{"winner": "B", "rationale": "r"}\n```')],
-            usage=types.SimpleNamespace(input_tokens=10, output_tokens=5), id="msg_1", stop_reason="end_turn",
+            usage=types.SimpleNamespace(input_tokens=10, output_tokens=5),
+            id="msg_1",
+            stop_reason="end_turn",
         )
         stream = mock.MagicMock()
         stream.__enter__.return_value.get_final_message.return_value = message

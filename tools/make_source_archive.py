@@ -1,8 +1,9 @@
 # Build the reviewed-source ZIP with fixed timestamps once the source check passes.
 """Create a ZIP from the reviewed source manifest, excluding all run outputs."""
+
 import argparse
-from pathlib import Path
 import zipfile
+from pathlib import Path
 
 from check_source import ROOT, check, load_manifest
 

@@ -1,11 +1,12 @@
 # Offline config, tournament, selection, checkpoint, and synthetic stage-integration tests.
 """Offline invariants and stage integration using synthetic workspace fixtures."""
+
 import collections
 import copy
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from mass import pipeline as p
@@ -76,10 +77,12 @@ class PipelineTests(unittest.TestCase):
     def test_checkpoint_selection_ignores_initial_and_unsaved_losses(self):
         out = self.base / "training"
         out.mkdir()
-        rows = [{"step": 0, "val_loss": .1, "val_tokens": 20},
-                {"step": 150, "val_loss": 2.0, "val_tokens": 20},
-                {"step": 300, "val_loss": 1.0, "val_tokens": 20},
-                {"step": 450, "val_loss": .2, "val_tokens": 20}]
+        rows = [
+            {"step": 0, "val_loss": 0.1, "val_tokens": 20},
+            {"step": 150, "val_loss": 2.0, "val_tokens": 20},
+            {"step": 300, "val_loss": 1.0, "val_tokens": 20},
+            {"step": 450, "val_loss": 0.2, "val_tokens": 20},
+        ]
         (out / "train_log.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
         for step in [150, 300]:
             d = out / f"step_{step:05d}"
@@ -110,7 +113,7 @@ class PipelineTests(unittest.TestCase):
                     write_json(out / "retained_workflow.json", {"version": 1, "beats_reference": True})
                 else:
                     q = Path(cmd[cmd.index("--query-file") + 1])
-                    dest = out / f"updated_queries/query51_ourTeam-v{k+1}.txt"
+                    dest = out / f"updated_queries/query51_ourTeam-v{k + 1}.txt"
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     dest.write_text(q.read_text(encoding="utf-8"), encoding="utf-8")
 

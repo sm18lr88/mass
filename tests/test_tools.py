@@ -155,10 +155,13 @@ class PairRolloutsTests(TempRepoTestCase):
         b = self.write_rows("b.json", [{"task": "t1", "replicate": 0, "workspace": "wb1"}, {"task": "t2", "replicate": 0, "workspace": "wb2"}])
         out = self.tmp / "pairs.json"
         pair_rollouts.pair(a, b, out)
-        self.assertEqual(json.loads(out.read_text(encoding="utf-8")), [
-            {"task": "t1", "a": "wa1", "b": "wb1"},
-            {"task": "t2", "a": "wa2", "b": "wb2"},
-        ])
+        self.assertEqual(
+            json.loads(out.read_text(encoding="utf-8")),
+            [
+                {"task": "t1", "a": "wa1", "b": "wb1"},
+                {"task": "t2", "a": "wa2", "b": "wb2"},
+            ],
+        )
 
     def test_mismatched_sets_are_rejected(self) -> None:
         a = self.write_rows("a.json", [{"task": "t1", "replicate": 0, "workspace": "wa"}])

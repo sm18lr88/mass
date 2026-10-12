@@ -11,6 +11,7 @@ template) that vLLM loads exactly like the parent.
     merge_lora.py --base <bf16 snapshot> --lora <step_dir/lora_state_dict.safetensors> \
                   --alpha 128 --r 64 --out ~/hiw_models/student_v1
 """
+
 import argparse
 import json
 import os
@@ -53,7 +54,7 @@ def main() -> None:
         with safe_open(os.path.join(args.base, shard), framework="pt") as f:
             for k in f.keys():
                 t = f.get_tensor(k)
-                mod = k[:-len(".weight")] if k.endswith(".weight") else None
+                mod = k[: -len(".weight")] if k.endswith(".weight") else None
                 if mod in pairs:
                     A = pairs[mod]["A"].float()
                     B = pairs[mod]["B"].float()
@@ -75,8 +76,7 @@ def main() -> None:
         if os.path.isfile(src):
             shutil.copy(src, os.path.join(args.out, fn))
     with open(os.path.join(args.out, "hiw_merge_info.json"), "w", encoding="utf-8") as f:
-        json.dump({"base": args.base, "lora": args.lora, "r": args.r, "alpha": args.alpha, "merged_modules": merged},
-                  f, indent=1)
+        json.dump({"base": args.base, "lora": args.lora, "r": args.r, "alpha": args.alpha, "merged_modules": merged}, f, indent=1)
     print(f"merged {merged} weight tensors -> {args.out}")
 
 

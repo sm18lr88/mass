@@ -5,9 +5,11 @@
 **Branch:** main
 
 ## OVERVIEW
+
 MASS: research code for recursive self-improvement. RHI (workflow search with frozen weights) -> teacher trajectory collection -> self-ranking -> LoRA SFT -> next model generation (L0 -> L1 -> L2). Python 3.14 default (3.12+ supported), stdlib-heavy driver; Qwen3.6-27B served by vLLM, qwen-code 0.20.0 as agent runtime.
 
 ## STRUCTURE
+
 ```
 mass/
 ├── mass/                   # stage driver: python -m mass <stage>; pipeline.py = CLI + STAGES table; config/episodes/collection/selection/sft/reporting modules; process.run = the one subprocess seam
@@ -24,34 +26,37 @@ mass/
 ```
 
 ## WHERE TO LOOK
-| Task | Location | Notes |
-|------|----------|-------|
-| Add/change a pipeline stage | `mass/pipeline.py` `STAGES` + the stage module | handlers resolve stage functions via their module so tests can patch them |
-| Config invariants | `mass/config.py` `validate` | split disjointness, loopback endpoint, 3 windows/step |
-| RHI proposal/judging logic | `harness_improvement/rhi_*.py` (prompts in `rhi_prompt.py`) | prompt strings are protocol; keep byte-identical |
-| Dependency direction / conventions | `tests/test_architecture.py` | layer rule, lazy heavy imports in mass/, responsibility comments, proxy copies |
-| Local/remote LLM JSON calls | `harness_improvement/llm_backend.py` `JsonLLMBackend` | used by RHI and `mass.judging.self_judge` |
-| Self vs external judging | `mass/judging.py` | self = current model; external = gpt-5.5 + claude-opus-4-8, seeds 42-44 |
-| Ranking | `mass/ranking.py` `bradley_terry`, `mass/selection.py` `tournament_pairs` | |
-| Loss masks / window rendering | `training/sft_windows.py` `Renderer`, `make_windows` (torch-free) | orchestrator prompt swapped for bare task |
-| Paper notation -> code | `docs/paper_to_code.md` | |
-| Known deviations from paper | `docs/reproduction.md`, `docs/experiment_coverage.md` | |
+
+| Task                               | Location                                                                  | Notes                                                                          |
+| ---------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Add/change a pipeline stage        | `mass/pipeline.py` `STAGES` + the stage module                            | handlers resolve stage functions via their module so tests can patch them      |
+| Config invariants                  | `mass/config.py` `validate`                                               | split disjointness, loopback endpoint, 3 windows/step                          |
+| RHI proposal/judging logic         | `harness_improvement/rhi_*.py` (prompts in `rhi_prompt.py`)               | prompt strings are protocol; keep byte-identical                               |
+| Dependency direction / conventions | `tests/test_architecture.py`                                              | layer rule, lazy heavy imports in mass/, responsibility comments, proxy copies |
+| Local/remote LLM JSON calls        | `harness_improvement/llm_backend.py` `JsonLLMBackend`                     | used by RHI and `mass.judging.self_judge`                                      |
+| Self vs external judging           | `mass/judging.py`                                                         | self = current model; external = gpt-5.5 + claude-opus-4-8, seeds 42-44        |
+| Ranking                            | `mass/ranking.py` `bradley_terry`, `mass/selection.py` `tournament_pairs` |                                                                                |
+| Loss masks / window rendering      | `training/sft_windows.py` `Renderer`, `make_windows` (torch-free)         | orchestrator prompt swapped for bare task                                      |
+| Paper notation -> code             | `docs/paper_to_code.md`                                                   |                                                                                |
+| Known deviations from paper        | `docs/reproduction.md`, `docs/experiment_coverage.md`                     |                                                                                |
 
 ## CODE MAP
-| Symbol | Type | Location | Role |
-|--------|------|----------|------|
-| `main` / `STAGES` | fn | mass/pipeline.py | CLI: plan/search/collect/rank/select/render/train/export/rollout/report |
-| `validate` / `freeze_config` | fn | mass/config.py | config checks; run_dir config is frozen on first stage |
-| `episode` / `completed` | fn | mass/episodes.py | runs `runtime/run_episode.sh`; reuse only if exit 0 + success trace |
-| `run` | fn | mass/process.py | every external command; call as `process.run(...)` |
-| `search` / `collect` | fn | mass/collection.py | bare reference + v0..vN workflows, shells out to RHI |
-| `best_checkpoint` | fn | mass/sft.py | min finite val_loss among saved `step_NNNNN` dirs |
-| `ROOT`, `package_path`, `write_json` | fn | mass/io.py | repo-relative paths; atomic JSON writes |
-| `JsonLLMBackend` | class | harness_improvement/llm_backend.py | JSON-mode LLM client |
-| `build_judge_bundle` | fn | evaluation/bundle.py | workspace -> judge evidence |
-| `PairwiseJudgeResult` | pydantic | evaluation_claudecodex/pairwise_schema.py | judge verdict schema |
+
+| Symbol                               | Type     | Location                                  | Role                                                                    |
+| ------------------------------------ | -------- | ----------------------------------------- | ----------------------------------------------------------------------- |
+| `main` / `STAGES`                    | fn       | mass/pipeline.py                          | CLI: plan/search/collect/rank/select/render/train/export/rollout/report |
+| `validate` / `freeze_config`         | fn       | mass/config.py                            | config checks; run_dir config is frozen on first stage                  |
+| `episode` / `completed`              | fn       | mass/episodes.py                          | runs `runtime/run_episode.sh`; reuse only if exit 0 + success trace     |
+| `run`                                | fn       | mass/process.py                           | every external command; call as `process.run(...)`                      |
+| `search` / `collect`                 | fn       | mass/collection.py                        | bare reference + v0..vN workflows, shells out to RHI                    |
+| `best_checkpoint`                    | fn       | mass/sft.py                               | min finite val_loss among saved `step_NNNNN` dirs                       |
+| `ROOT`, `package_path`, `write_json` | fn       | mass/io.py                                | repo-relative paths; atomic JSON writes                                 |
+| `JsonLLMBackend`                     | class    | harness_improvement/llm_backend.py        | JSON-mode LLM client                                                    |
+| `build_judge_bundle`                 | fn       | evaluation/bundle.py                      | workspace -> judge evidence                                             |
+| `PairwiseJudgeResult`                | pydantic | evaluation_claudecodex/pairwise_schema.py | judge verdict schema                                                    |
 
 ## CONVENTIONS
+
 - Generations are named `L0`/`L1`/`L2` everywhere (configs, run dirs, model dirs). Keep the paper notation.
 - Paths in configs are repo-relative, resolved through `package_path`; commands run from the repo root, no editable install.
 - `mass/io.py` must stay free of model/accelerator imports; heavy deps are imported lazily inside functions (`judging.py`, `rank`, `report`).
@@ -60,6 +65,7 @@ mass/
 - Episode seeds are derived from config `seed_base` + task/version/candidate; do not reorder loops that compute them.
 
 ## ANTI-PATTERNS (THIS PROJECT)
+
 - Never reuse a `run_dir` after changing its config; `freeze_config` raises. Make a new `configs/local-*.json` (gitignored) and new `run_dir`.
 - Never overwrite or delete partial episode dirs to retry; `run_episode.sh` refuses (exit 73). Archive explicitly or use a new run_dir.
 - Never let test tasks (60, 207, 305) reach collect/select/render or checkpoint selection.
@@ -69,11 +75,13 @@ mass/
 - `train` refuses when `training/train_log.jsonl` exists; resume only via `train_sft_lora.py --resume`. `export` refuses populated model dirs.
 
 ## UNIQUE STYLES
+
 - Terse functional style in `mass/`: short functions, config dict `c`, task id `q`, no classes.
 - `runtime/api_proxy.py` and `benchmarks/scripts/bench_api_proxy.py` are byte-identical copies; edit both.
 - `run_episode.sh` qwen-code settings are byte-identical to the original experiment episodes; changing them changes the protocol.
 
 ## COMMANDS
+
 ```bash
 # Offline checks (what CI runs, Python 3.12 + 3.13 + 3.14); deps in pyproject.toml, locked in uv.lock
 uv sync --locked
@@ -90,6 +98,7 @@ python -m mass search --config configs/paper.json --tasks 51
 ```
 
 ## NOTES
+
 - After editing any file listed in `SOURCE_MANIFEST.json`, refresh its hash (snippet in `docs/development.md`) or CI's `check_source.py` fails. Only list files intended for release.
 - Episodes need Linux + bash, `jq`, `curl`, `qwen` on PATH; qwen-code runs with `--approval-mode yolo` on the host with no sandbox.
 - Training and serving need separate venvs (`.venv-train`, `.venv-serve`): vLLM pins an older torch than the train group. openai>=3 and anthropic>=1 run on `httpx2` (pass `httpx2` objects, never `httpx`). `pyproject.toml` declares the `train` and `serve` groups as conflicting; create each with `UV_PROJECT_ENVIRONMENT=<venv> uv sync --locked ...` (docs/running.md).

@@ -1,8 +1,9 @@
 # The single subprocess seam: every external command the driver launches goes through run().
 """Call sites use `process.run(...)` (module attribute lookup) so tests can patch one name."""
-from collections.abc import Iterable, Mapping
+
 import shlex
 import subprocess
+from collections.abc import Iterable, Mapping
 
 from .io import ROOT
 

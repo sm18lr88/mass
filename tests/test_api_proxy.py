@@ -18,6 +18,7 @@ from aiohttp.test_utils import TestClient, TestServer
 
 PATH = Path(__file__).resolve().parents[1] / "runtime" / "api_proxy.py"
 SPEC = importlib.util.spec_from_file_location("api_proxy_under_test", PATH)
+assert SPEC is not None and SPEC.loader is not None
 proxy = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(proxy)
 
@@ -30,15 +31,29 @@ def sse(*objs: object) -> bytes:
 class AssembleSseTest(unittest.TestCase):
     def test_content_tools_usage_done(self) -> None:
         raw = sse(
-            {"id": "c1", "model": "m", "created": 7,
-             "choices": [{"index": 0, "delta": {"role": "assistant", "reasoning_content": "th"}}]},
+            {"id": "c1", "model": "m", "created": 7, "choices": [{"index": 0, "delta": {"role": "assistant", "reasoning_content": "th"}}]},
             {"choices": [{"index": 0, "delta": {"reasoning": "ink", "content": "Hel"}}]},
-            {"choices": [{"index": 0, "delta": {"content": "lo", "tool_calls": [
-                {"index": 0, "id": "call_1", "type": "function",
-                 "function": {"name": "rea", "arguments": "{\"a\":"}}]}}]},
-            {"choices": [{"index": 0, "delta": {"tool_calls": [
-                {"index": 0, "function": {"name": "d", "arguments": "1}"}}]},
-                "finish_reason": "tool_calls", "stop_reason": 5}]},
+            {
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "content": "lo",
+                            "tool_calls": [{"index": 0, "id": "call_1", "type": "function", "function": {"name": "rea", "arguments": '{"a":'}}],
+                        },
+                    }
+                ]
+            },
+            {
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"tool_calls": [{"index": 0, "function": {"name": "d", "arguments": "1}"}}]},
+                        "finish_reason": "tool_calls",
+                        "stop_reason": 5,
+                    }
+                ]
+            },
             {"choices": [], "usage": {"total_tokens": 9}},
             "not json",
             "[DONE]",
@@ -55,9 +70,7 @@ class AssembleSseTest(unittest.TestCase):
         self.assertEqual(msg["role"], "assistant")
         self.assertEqual(msg["content"], "Hello")
         self.assertEqual(msg["reasoning_content"], "think")
-        self.assertEqual(msg["tool_calls"], [{
-            "index": 0, "id": "call_1", "type": "function",
-            "function": {"name": "read", "arguments": "{\"a\":1}"}}])
+        self.assertEqual(msg["tool_calls"], [{"index": 0, "id": "call_1", "type": "function", "function": {"name": "read", "arguments": '{"a":1}'}}])
 
     def test_empty_stream(self) -> None:
         out = proxy.assemble_sse(b"")
@@ -177,10 +190,21 @@ class ProxyProcessTest(unittest.TestCase):
             log = Path(d) / "api_requests.jsonl"
             proc = subprocess.Popen(
                 [sys.executable, str(PATH), "--listen", str(port), "--upstream", f"http://127.0.0.1:{upstream.server_port}", "--log", str(log)],
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8")
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+            )
             try:
                 lines: queue.Queue[str] = queue.Queue()
-                threading.Thread(target=lambda: [lines.put(line) for line in proc.stdout], daemon=True).start()
+                stdout = proc.stdout
+                assert stdout is not None
+
+                def pump() -> None:
+                    for line in stdout:
+                        lines.put(line)
+
+                threading.Thread(target=pump, daemon=True).start()
                 self.assertTrue(lines.get(timeout=30).startswith("READY"))
                 with urllib.request.urlopen(f"http://127.0.0.1:{port}/v1/models", timeout=30) as resp:
                     self.assertEqual(json.load(resp)["data"][0]["id"], "fake-model")

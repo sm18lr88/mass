@@ -26,10 +26,12 @@ class FakeTokenizer:
         while i < len(text):
             for k, s in enumerate(SPECIAL):
                 if text.startswith(s, i):
-                    ids.append(1000 + k); i += len(s)
+                    ids.append(1000 + k)
+                    i += len(s)
                     break
             else:
-                ids.append(ord(text[i])); i += 1
+                ids.append(ord(text[i]))
+                i += 1
         return {"input_ids": ids}
 
     def convert_tokens_to_ids(self, token):
@@ -60,9 +62,13 @@ def chat(seq, messages):
 
 class WindowTests(unittest.TestCase):
     def test_windows_mask_context_and_train_each_assistant_token_once(self):
-        blocks = [block("system", [1, 2], False), block("user", [3, 4], False),
-                  block("assistant", [10, 11, 12], True), block("tool", [20, 21], False),
-                  block("assistant", [30, 31, 32], True)]
+        blocks = [
+            block("system", [1, 2], False),
+            block("user", [3, 4], False),
+            block("assistant", [10, 11, 12], True),
+            block("tool", [20, 21], False),
+            block("assistant", [30, 31, 32], True),
+        ]
         windows, skipped = make_windows(blocks, window=10, overlap=3)
         self.assertFalse(skipped)
         self.assertGreater(len(windows), 1)
@@ -78,10 +84,13 @@ class WindowTests(unittest.TestCase):
 
     def test_renderer_masks_only_generated_assistant_tokens(self):
         tok = FakeTokenizer()
-        msgs = [{"role": "system", "content": "sys"}, {"role": "user", "content": "do it"},
-                {"role": "assistant", "content": "ok", "reasoning_content": "hmm",
-                 "tool_calls": [{"function": {"name": "f", "arguments": "{\"a\": 1}"}}]},
-                {"role": "tool", "content": "res"}, {"role": "assistant", "content": "done"}]
+        msgs = [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "do it"},
+            {"role": "assistant", "content": "ok", "reasoning_content": "hmm", "tool_calls": [{"function": {"name": "f", "arguments": '{"a": 1}'}}]},
+            {"role": "tool", "content": "res"},
+            {"role": "assistant", "content": "done"},
+        ]
         segs = Renderer(tok).segments(msgs, None)
         self.assertEqual(len(segs), 1)
         self.assertEqual([b["kind"] for b in segs[0]], ["system", "user", "assistant", "tool", "assistant"])
@@ -116,24 +125,29 @@ class RequestTests(unittest.TestCase):
         self.assertEqual((recs, path), ([{"seq": 1, "x": "\u00e9"}], p))
 
     def test_replay_message_and_vllm_argument_parsing(self):
-        resp = {"content": None, "reasoning_content": "r",
-                "tool_calls": [{"id": "c1", "function": {"name": "f", "arguments": "{\"a\": 1}"}}]}
+        resp = {"content": None, "reasoning_content": "r", "tool_calls": [{"id": "c1", "function": {"name": "f", "arguments": '{"a": 1}'}}]}
         m = response_to_replay_message(resp)
-        self.assertEqual(m, {"role": "assistant", "content": "", "reasoning_content": "r",
-                             "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "f", "arguments": "{\"a\": 1}"}}]})
+        self.assertEqual(
+            m,
+            {
+                "role": "assistant",
+                "content": "",
+                "reasoning_content": "r",
+                "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "f", "arguments": '{"a": 1}'}}],
+            },
+        )
         bad = dict(m, tool_calls=[{"function": {"name": "g", "arguments": "not json"}}])
         out = vllm_postprocess([m, bad])
         self.assertEqual(out[0]["tool_calls"][0]["function"]["arguments"], {"a": 1})
         self.assertEqual(out[1]["tool_calls"][0]["function"]["arguments"], "not json")
-        self.assertEqual(m["tool_calls"][0]["function"]["arguments"], "{\"a\": 1}")  # input not mutated
+        self.assertEqual(m["tool_calls"][0]["function"]["arguments"], '{"a": 1}')  # input not mutated
 
 
 class PromptTests(unittest.TestCase):
     def test_prompt_match_modes(self):
         self.assertEqual(prompt_match("x TASK y", "TASK"), ("TASK", "exact"))
         self.assertEqual(prompt_match("x TASK y", "  TASK\n"), ("TASK", "strip"))
-        self.assertEqual(prompt_match([{"type": "text", "text": "use precision @k now"}], "use precision@k now\n"),
-                         ("use precision @k now", "qwen_metric_at"))
+        self.assertEqual(prompt_match([{"type": "text", "text": "use precision @k now"}], "use precision@k now\n"), ("use precision @k now", "qwen_metric_at"))
         self.assertIsNone(prompt_match("nothing", "TASK"))
         self.assertIsNone(prompt_match("TASK", None))
         with self.assertRaises(ValueError):
@@ -143,6 +157,7 @@ class PromptTests(unittest.TestCase):
         self.assertEqual(substitute_prompt("<ctx>TEACH</ctx>", "TEACH", "BARE"), "<ctx>BARE</ctx>")
         content = [{"type": "text", "text": "pre"}, {"type": "text", "text": "a precision @k b"}]
         out = substitute_prompt(content, "a precision@k b", "bare recall@k \n")
+        assert isinstance(out, list)
         self.assertEqual(out[1]["text"], "bare recall @k")
         self.assertEqual(content[1]["text"], "a precision @k b")  # input not mutated
         with self.assertRaises(ValueError):
@@ -152,6 +167,7 @@ class PromptTests(unittest.TestCase):
         self.addCleanup(sft_prompts.SENT.clear)
         with tempfile.TemporaryDirectory() as d:
             import hashlib
+
             entries = {}
             for name, orig, sent in (("t.txt", "teach @a", "teach SENT\u00e9"), ("b.txt", "bare @b", "bare SENT")):
                 with open(os.path.join(d, name), "w", encoding="utf-8") as f:
@@ -172,13 +188,14 @@ class PromptTests(unittest.TestCase):
 
 
 class SamplingTests(unittest.TestCase):
-    ROWS = [{"condition": "t51_a", "episode": "t51_a_s1", "_task": 51, "_rg": "orch"},
-            {"condition": "t51_a", "episode": "t51_a_s2", "_task": 51, "_rg": "nonmain"},
-            {"condition": "t53_b", "episode": "t53_b_s1", "_task": 53, "_rg": "nonmain"}]
+    ROWS = [
+        {"condition": "t51_a", "episode": "t51_a_s1", "_task": 51, "_rg": "orch"},
+        {"condition": "t51_a", "episode": "t51_a_s2", "_task": 51, "_rg": "nonmain"},
+        {"condition": "t53_b", "episode": "t53_b_s1", "_task": 53, "_rg": "nonmain"},
+    ]
 
     def test_role_group_and_task_of(self):
-        self.assertEqual([role_group(r) for r in ({"role": "orchestrator"}, {"role": "worker"}, {"is_main": True}, {})],
-                         ["orch", "nonmain", "orch", "nonmain"])
+        self.assertEqual([role_group(r) for r in ({"role": "orchestrator"}, {"role": "worker"}, {"is_main": True}, {})], ["orch", "nonmain", "orch", "nonmain"])
         self.assertEqual([task_of(r) for r in ({"task": "7"}, {"condition": "t302_x"}, {"condition": "bare"})], [7, 302, -1])
 
     def test_split_val_by_episode_regex(self):
@@ -187,9 +204,11 @@ class SamplingTests(unittest.TestCase):
         self.assertEqual(([r["episode"] for r in tr], [r["episode"] for r in va]), (["t51_a_s1", "t53_b_s1"], ["t51_a_s2"]))
 
     def test_load_windows_filters_and_crops(self):
-        rows = [{"condition": "t51_a", "is_main": True, "input_ids": [1, 2, 3, 4], "labels": [-100, -100, 3, 4]},
-                {"condition": "t51_a", "role": "worker", "input_ids": [1, 2], "labels": [2, -100]},
-                {"condition": "skip", "input_ids": [1, 2], "labels": [-100, 2]}]
+        rows = [
+            {"condition": "t51_a", "is_main": True, "input_ids": [1, 2, 3, 4], "labels": [-100, -100, 3, 4]},
+            {"condition": "t51_a", "role": "worker", "input_ids": [1, 2], "labels": [2, -100]},
+            {"condition": "skip", "input_ids": [1, 2], "labels": [-100, 2]},
+        ]
         with tempfile.TemporaryDirectory() as d:
             p = os.path.join(d, "w.jsonl")
             with open(p, "w", encoding="utf-8") as f:
@@ -214,8 +233,9 @@ class SamplingTests(unittest.TestCase):
 
 class ScriptTests(unittest.TestCase):
     def test_prepare_sft_data_runs_by_path_without_transformers(self):
-        p = subprocess.run([sys.executable, str(ROOT / "training/prepare_sft_data.py"), "--help"],
-                           capture_output=True, text=True, encoding="utf-8", timeout=60, cwd=ROOT)
+        p = subprocess.run(
+            [sys.executable, str(ROOT / "training/prepare_sft_data.py"), "--help"], capture_output=True, text=True, encoding="utf-8", timeout=60, cwd=ROOT
+        )
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertIn("--sent-index", p.stdout)
 

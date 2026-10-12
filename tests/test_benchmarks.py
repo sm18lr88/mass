@@ -1,9 +1,9 @@
 # Offline checks for harbor-free benchmark aggregation and evaluator path handling.
 import importlib.util
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from mass.io import ROOT
@@ -11,6 +11,7 @@ from mass.io import ROOT
 
 def load(name):
     spec = importlib.util.spec_from_file_location(name, ROOT / f"benchmarks/{name}.py")
+    assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -19,6 +20,7 @@ def load(name):
 class BenchmarkTests(unittest.TestCase):
     def test_sab_evaluator_paths_survive_its_changed_working_directory(self):
         spec = importlib.util.spec_from_file_location("collector", ROOT / "benchmarks/scripts/bench_sab_collect_preds.py")
+        assert spec is not None and spec.loader is not None
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         with patch.object(mod.subprocess, "run") as run:
@@ -31,16 +33,15 @@ class BenchmarkTests(unittest.TestCase):
         mod = load("summarize")
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "scores.jsonl"
-            p.write_text('\n'.join(json.dumps({"success_rate": i % 2}) for i in range(102)))
-            self.assertEqual(mod.sab_trial(p), .5)
+            p.write_text("\n".join(json.dumps({"success_rate": i % 2}) for i in range(102)))
+            self.assertEqual(mod.sab_trial(p), 0.5)
             p.write_text('{"success_rate": 1}\n')
             with self.assertRaises(ValueError):
                 mod.sab_trial(p)
 
     def test_mlr_missing_papers_zero_missing_judges_error(self):
         mod = load("summarize_mlr")
-        reviews = {"a": {"job": "mlr_L0_t1", "task": "a", "reviews": {
-            j: {"Overall": 0, "missing_paper": True} for j in ["gpt-5.5", "claude-opus-4-8"]}}}
+        reviews = {"a": {"job": "mlr_L0_t1", "task": "a", "reviews": {j: {"Overall": 0, "missing_paper": True} for j in ["gpt-5.5", "claude-opus-4-8"]}}}
         self.assertEqual(mod.summarize(reviews, {"a"})["L0"]["mean"], 0)
         reviews["a"]["reviews"].pop("gpt-5.5")
         with self.assertRaises(ValueError):
