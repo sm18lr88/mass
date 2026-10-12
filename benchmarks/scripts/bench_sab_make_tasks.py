@@ -1,13 +1,17 @@
-#!/usr/bin/env python3
-# Generate Harbor task environments for the 102 verified ScienceAgentBench tasks.
-"""Build the 102 verified ScienceAgentBench task environments.
+"""Build Harbor task environments for the 102 verified ScienceAgentBench tasks.
 Program-presence rewards are bookkeeping; use the official evaluator for scores."""
-from pathlib import Path
+
 import os
+from pathlib import Path
+
 BENCH_ROOT = Path(os.environ.get("MASS_BENCH_ROOT", str(Path(__file__).resolve().parents[1] / "work"))).resolve()
 
-import argparse, json, os, shutil
+import argparse
+import json
+import os
+import shutil
 from pathlib import Path
+
 from datasets import load_dataset
 
 BENCH = BENCH_ROOT / "sab" / "benchmark"
@@ -55,7 +59,7 @@ cpus = 2
 memory = "8G"
 storage = "20G"
 """
-IMAGE_TAG = os.environ.get("SAB_IMAGE_TAG", "20260924")   # images pre-built by bench_sab_prebuild.py from the same environment/Dockerfile
+IMAGE_TAG = os.environ.get("SAB_IMAGE_TAG", "20260924")  # images pre-built by bench_sab_prebuild.py from the same environment/Dockerfile
 
 DOCKERFILE = """FROM {base}
 RUN mkdir -p /workspace/pred_programs /workspace/pred_results /workspace/benchmark/datasets
@@ -73,29 +77,47 @@ if [ -s "/workspace/pred_programs/{pred}" ]; then echo 1 > /logs/verifier/reward
 
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("--ids", nargs="*", type=int, default=None); a = ap.parse_args()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ids", nargs="*", type=int, default=None)
+    a = ap.parse_args()
     ds = load_dataset("osunlp/ScienceAgentBench", split="verified")
     rows = [r for r in ds if a.ids is None or int(r["instance_id"]) in a.ids]
     TASKS.mkdir(parents=True, exist_ok=True)
     index = {}
     for r in rows:
-        iid = int(r["instance_id"]); folder = r["dataset_folder_tree"].split("\n")[0][4:].rstrip("/")
+        iid = int(r["instance_id"])
+        folder = r["dataset_folder_tree"].split("\n")[0][4:].rstrip("/")
         src = BENCH / "datasets" / folder
         assert src.is_dir(), (iid, src)
         t = TASKS / f"sab_{iid}"
-        env = t / "environment"; (env / "datasets").mkdir(parents=True, exist_ok=True); (t / "tests").mkdir(exist_ok=True)
+        env = t / "environment"
+        (env / "datasets").mkdir(parents=True, exist_ok=True)
+        (t / "tests").mkdir(exist_ok=True)
         dst = env / "datasets" / folder
         if not dst.exists():  # hard links: same NFS filesystem, no extra space
             shutil.copytree(src, dst, copy_function=shutil.copy2)
         pred = "pred_" + r["gold_program_name"]
-        (t / "instruction.md").write_text(INSTRUCTION.format(
-            task_inst=r["task_inst"], dataset_path=f"/workspace/benchmark/datasets/{folder}",
-            dataset_folder_tree=r["dataset_folder_tree"], dataset_preview=r["dataset_preview"], pred_program_name=pred))
+        (t / "instruction.md").write_text(
+            INSTRUCTION.format(
+                task_inst=r["task_inst"],
+                dataset_path=f"/workspace/benchmark/datasets/{folder}",
+                dataset_folder_tree=r["dataset_folder_tree"],
+                dataset_preview=r["dataset_preview"],
+                pred_program_name=pred,
+            )
+        )
         (t / "task.toml").write_text(TASK_TOML.format(iid=iid, domain=r["domain"], gold=r["gold_program_name"], out=r["output_fname"], image_tag=IMAGE_TAG))
         (env / "Dockerfile").write_text(DOCKERFILE.format(base=BASE_IMAGE))
-        (t / "tests" / "test.sh").write_text(TEST_SH.format(pred=pred)); os.chmod(t / "tests" / "test.sh", 0o755)
-        index[f"sab_{iid}"] = {"instance_id": iid, "domain": r["domain"], "gold_program_name": r["gold_program_name"],
-                               "pred_program_name": pred, "output_fname": r["output_fname"], "dataset_folder": folder}
+        (t / "tests" / "test.sh").write_text(TEST_SH.format(pred=pred))
+        os.chmod(t / "tests" / "test.sh", 0o755)
+        index[f"sab_{iid}"] = {
+            "instance_id": iid,
+            "domain": r["domain"],
+            "gold_program_name": r["gold_program_name"],
+            "pred_program_name": pred,
+            "output_fname": r["output_fname"],
+            "dataset_folder": folder,
+        }
     (TASKS / "index.json").write_text(json.dumps(index, indent=1) + "\n")
     print(f"wrote {len(rows)} tasks under {TASKS}")
 

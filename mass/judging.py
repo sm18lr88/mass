@@ -1,5 +1,4 @@
-# Pairwise trajectory judging: self-judge (current model) for ranking, external judges for reporting.
-"""Self-evaluation uses the current generation; reporting uses external judges."""
+"""Pairwise trajectory judging: the current generation self-judges for ranking; external judges are for reporting."""
 
 import os
 import random

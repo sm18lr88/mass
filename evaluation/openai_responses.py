@@ -1,5 +1,4 @@
-# OpenAI Responses API call that drops kwargs a model/SDK rejects and retries.
-"""Helpers for ``client.responses.create`` across OpenAI SDK / model quirks."""
+"""Helpers for ``client.responses.create`` across OpenAI SDK / model quirks: drop kwargs that a model or SDK rejects, and retry."""
 
 from __future__ import annotations
 

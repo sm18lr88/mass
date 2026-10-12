@@ -1,5 +1,4 @@
-# Clone pinned public benchmark repositories into benchmarks/vendor and apply local patches.
-"""Fetch public benchmark code at fixed commits; no benchmark execution."""
+"""Clone pinned public benchmark repositories into benchmarks/vendor at fixed commits and apply local patches; no benchmark execution."""
 import json
 from pathlib import Path
 import subprocess

@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# CLI: merges a trained LoRA state dict into the BF16 base checkpoint, shard by shard on CPU.
 """Merge a LoRA state dict (from train_sft_lora.py) into the BF16 base checkpoint.
 
 Shard-by-shard on CPU: every base tensor is copied unchanged (incl. vision

@@ -1,5 +1,4 @@
-# Matches teacher/bare task prompts in user messages and swaps them, incl. qwen-code normalizations (torch-free).
-"""Prompt matching and substitution for SFT rendering, plus thread role and task parsing."""
+"""Torch-free matching and swapping of teacher/bare task prompts in user messages (incl. qwen-code normalizations), plus thread role and task parsing."""
 
 import copy
 import hashlib

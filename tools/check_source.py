@@ -1,5 +1,4 @@
-# Verify reviewed source hashes and scan manifest files for personal paths and credentials offline.
-"""Check reviewed source integrity and common personal-path/credential leaks offline."""
+"""Verify reviewed source hashes and scan manifest files for common personal-path/credential leaks offline."""
 
 import argparse
 import hashlib

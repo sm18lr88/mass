@@ -1,6 +1,4 @@
-#!/usr/bin/env python3
-# CLI: renders recorded qwen-code episodes into masked SFT windows JSONL (+ optional stats/strict audit).
-"""Render recorded qwen-code conversations into masked SFT windows."""
+"""CLI: render recorded qwen-code conversations into masked SFT windows JSONL (with optional stats and strict audit)."""
 
 import argparse
 import copy

@@ -1,11 +1,13 @@
-#!/usr/bin/env python3
-# Generate Harbor task environments for the configured MLR-Bench subset.
-"""Build the configured MLR-Bench task environments with two-hour agent limits."""
-from pathlib import Path
+"""Build Harbor task environments for the configured MLR-Bench subset, with two-hour agent limits."""
+
 import os
+from pathlib import Path
+
 BENCH_ROOT = Path(os.environ.get("MASS_BENCH_ROOT", str(Path(__file__).resolve().parents[1] / "work"))).resolve()
 
-import argparse, os, shutil
+import argparse
+import os
+import shutil
 from pathlib import Path
 
 PKG = Path(__file__).resolve().parent.parent
@@ -59,15 +61,22 @@ if [ -s /workspace/results/paper.md ]; then echo 1 > /logs/verifier/reward.txt; 
 
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("names", nargs="+"); ap.add_argument("--pilot", nargs="*", default=None); a = ap.parse_args()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("names", nargs="+")
+    ap.add_argument("--pilot", nargs="*", default=None)
+    a = ap.parse_args()
     TASKS.mkdir(parents=True, exist_ok=True)
     for name in a.names:
-        src = SRC / f"{name}.md"; assert src.exists(), src
-        t = TASKS / f"mlr_{name}"; (t / "environment").mkdir(parents=True, exist_ok=True); (t / "tests").mkdir(exist_ok=True)
+        src = SRC / f"{name}.md"
+        assert src.exists(), src
+        t = TASKS / f"mlr_{name}"
+        (t / "environment").mkdir(parents=True, exist_ok=True)
+        (t / "tests").mkdir(exist_ok=True)
         (t / "environment" / "Dockerfile").write_text(f"FROM mlr_base:{TAG}\nWORKDIR /workspace\n")
         (t / "instruction.md").write_text(INSTRUCTION.format(task=src.read_text().strip()))
         (t / "task.toml").write_text(TASK_TOML.format(name=name, tag=TAG))
-        (t / "tests" / "test.sh").write_text(TEST_SH); os.chmod(t / "tests" / "test.sh", 0o755)
+        (t / "tests" / "test.sh").write_text(TEST_SH)
+        os.chmod(t / "tests" / "test.sh", 0o755)
         shutil.copy(src, t / "task.md")
     (TASKS / "index.json").write_text("{" + ", ".join(f'"mlr_{n}": "{n}"' for n in a.names) + "}\n")
     if a.pilot:

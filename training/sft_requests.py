@@ -1,5 +1,4 @@
-# Loads recorded proxy API logs and groups chat requests into conversation threads (torch-free).
-"""Request-log loading, vLLM message post-processing, and thread grouping for SFT rendering.
+"""Torch-free proxy request-log loading, vLLM message post-processing, and grouping of chat requests into conversation threads.
 
 Imported as ``training.sft_requests``: the training scripts append the repository root to
 ``sys.path`` before importing (see ``training/__init__.py``), so the same module object is used

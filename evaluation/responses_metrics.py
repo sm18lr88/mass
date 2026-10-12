@@ -1,6 +1,5 @@
-# Judge API token usage serialization and approximate USD cost estimates.
 """
-Token usage and rough USD cost from judge-model API usage.
+Judge API token usage serialization and rough USD cost estimates.
 
 Costs are **estimates** from a small built-in table (standard tier, typical context).
 Always persist raw ``usage`` from the API; refresh rates from

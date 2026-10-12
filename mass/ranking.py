@@ -1,5 +1,4 @@
-# Bradley-Terry scores from pairwise trajectory verdicts.
-"""Bradley--Terry fitting for within-task trajectory comparisons."""
+"""Bradley-Terry scores from pairwise trajectory verdicts, for within-task comparisons."""
 
 import math
 from collections.abc import Mapping, Sequence

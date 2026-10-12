@@ -1,5 +1,4 @@
-# JSON-mode LLM client (OpenAI Responses or local vLLM chat) for RHI and judging.
-"""JSON-only LLM backends for recursive harness improvement.
+"""JSON-only LLM backends (OpenAI Responses or local vLLM chat) for recursive harness improvement and judging.
 
 The historical RHI path used OpenAI's Responses API.  The local path uses the
 OpenAI-compatible Chat Completions endpoint exposed by vLLM.  Keeping both

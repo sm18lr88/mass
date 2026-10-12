@@ -1,5 +1,4 @@
-# Offline config, tournament, selection, checkpoint, and synthetic stage-integration tests.
-"""Offline invariants and stage integration using synthetic workspace fixtures."""
+"""Offline config, tournament, selection, and checkpoint invariants, plus stage integration using synthetic workspace fixtures."""
 
 import collections
 import copy

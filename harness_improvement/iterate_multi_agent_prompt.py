@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
-# CLI entry point for RHI (python -m harness_improvement.iterate_multi_agent_prompt); logic lives in rhi_*.py.
 """RHI: execute a workflow, compare artifacts, and propose the next workflow.
 
+CLI entry point (``python -m harness_improvement.iterate_multi_agent_prompt``); the logic lives in ``rhi_*.py``.
 Use ``python -m mass search`` for the paper configuration.
 """
 

@@ -1,5 +1,4 @@
-# JSON extraction and response/usage parsing helpers for the JSON LLM backend.
-"""Pure parsing helpers shared by ``llm_backend`` (no network, no client)."""
+"""JSON extraction and response/usage parsing helpers shared by ``llm_backend`` (no network, no client)."""
 
 from __future__ import annotations
 

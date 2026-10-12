@@ -1,5 +1,4 @@
-# Launch one Harbor benchmark trial (SAB or MLR) for a served model generation.
-"""Run one public-benchmark trial with a served L^(k) and qwen-code."""
+"""Run one Harbor public-benchmark trial (SAB or MLR) with a served L^(k) and qwen-code."""
 import argparse
 import json
 import os

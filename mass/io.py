@@ -1,5 +1,4 @@
-# UTF-8 JSON/JSONL file helpers and repo-relative path resolution.
-"""Small file helpers; no model or accelerator imports."""
+"""UTF-8 JSON/JSONL file helpers and repo-relative path resolution; no model or accelerator imports."""
 
 import json
 import os

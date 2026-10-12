@@ -1,5 +1,4 @@
-# Build the reviewed-source ZIP with fixed timestamps once the source check passes.
-"""Create a ZIP from the reviewed source manifest, excluding all run outputs."""
+"""Create a ZIP with fixed timestamps from the reviewed source manifest once the source check passes, excluding all run outputs."""
 
 import argparse
 import zipfile

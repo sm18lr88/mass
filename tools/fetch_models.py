@@ -1,5 +1,4 @@
-# Download the pinned public base checkpoints into models/ without loading any model weights.
-"""Download the pinned public base checkpoints; does not load a model."""
+"""Download the pinned public base checkpoints into models/; does not load a model."""
 
 import json
 from pathlib import Path

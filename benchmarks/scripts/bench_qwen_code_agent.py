@@ -1,8 +1,6 @@
-#!/usr/bin/env python3
-# Harbor agent adapter running qwen-code through the logging proxy with infra-failure retries.
 """Harbor adapter for L^(0), L^(1), and L^(2) with qwen-code 0.20.0.
 Records each request through the logging proxy and retries infrastructure failures."""
-import sys
+
 import asyncio
 import gzip
 import json
@@ -11,24 +9,35 @@ import shlex
 import signal
 import socket
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
 from pathlib import Path
 from typing import Any, override
 
-from pydantic import Field
-
 from harbor.agents.installed.base import ApiConnectionClosedError
 from harbor.agents.installed.qwen_code import QwenCode, QwenCodeOptions
 from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
+from pydantic import Field
 
 HERE = Path(__file__).resolve().parent
 QWEN_MOUNT = "/opt/qwen-code"
 AGENT_LOGS = "/logs/agent"  # harbor mounts <trial>/agent here
-INFRA_MARKERS = ("Connection error", "ECONNREFUSED", "Request timeout", "fetch failed", "ECONNRESET", "socket hang up",
-                 "No stream activity", "terminated", "Service Unavailable", "502", "503")
+INFRA_MARKERS = (
+    "Connection error",
+    "ECONNREFUSED",
+    "Request timeout",
+    "fetch failed",
+    "ECONNRESET",
+    "socket hang up",
+    "No stream activity",
+    "terminated",
+    "Service Unavailable",
+    "502",
+    "503",
+)
 PROXY_PORT_RANGE = range(9100, 9900)
 
 
@@ -54,8 +63,8 @@ def _truthy(v: Any) -> bool:
 class BenchQwenCode(QwenCode):
     options_model = BenchQwenCodeOptions
     _lock = threading.Lock()
-    _active: dict[int, int] = {}      # upstream port -> trials currently using it (this process)
-    _used_ports: set[int] = set()     # proxy ports reserved (this process)
+    _active: dict[int, int] = {}  # upstream port -> trials currently using it (this process)
+    _used_ports: set[int] = set()  # proxy ports reserved (this process)
 
     @staticmethod
     @override
@@ -147,9 +156,21 @@ class BenchQwenCode(QwenCode):
     async def _start_proxy(self, port: int, upstream: int, logs: Path) -> subprocess.Popen:
         proxy_log = open(logs / "proxy.log", "ab")
         proc = subprocess.Popen(
-            [self.opts.proxy_python, str(HERE / "bench_api_proxy.py"), "--listen", str(port), "--host", self.opts.proxy_host,
-             "--upstream", f"http://127.0.0.1:{upstream}", "--log", str(logs / "api_requests.jsonl")],
-            stdout=proxy_log, stderr=subprocess.STDOUT, start_new_session=True,
+            [
+                self.opts.proxy_python,
+                str(HERE / "bench_api_proxy.py"),
+                "--listen",
+                str(port),
+                "--host",
+                self.opts.proxy_host,
+                "--upstream",
+                f"http://127.0.0.1:{upstream}",
+                "--log",
+                str(logs / "api_requests.jsonl"),
+            ],
+            stdout=proxy_log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
         )
         url = f"http://{self.opts.proxy_host}:{port}/v1/models"
         for _ in range(75):
@@ -184,15 +205,30 @@ class BenchQwenCode(QwenCode):
         return {
             "$version": 4,
             "env": {"VLLM_API_KEY": "EMPTY"},
-            "modelProviders": {"openai": [{
-                "id": self.opts.model_dir, "envKey": "VLLM_API_KEY", "baseUrl": client_endpoint,
-                "generationConfig": {
-                    "timeout": 1800000, "maxRetries": 0, "contextWindowSize": 262144,
-                    "extra_body": {"chat_template_kwargs": {"enable_thinking": True}},
-                    "samplingParams": {"temperature": 0.6, "top_p": 0.95, "top_k": 20, "presence_penalty": 0,
-                                       "repetition_penalty": 1, "max_tokens": 32768, "seed": seed},
-                },
-            }]},
+            "modelProviders": {
+                "openai": [
+                    {
+                        "id": self.opts.model_dir,
+                        "envKey": "VLLM_API_KEY",
+                        "baseUrl": client_endpoint,
+                        "generationConfig": {
+                            "timeout": 1800000,
+                            "maxRetries": 0,
+                            "contextWindowSize": 262144,
+                            "extra_body": {"chat_template_kwargs": {"enable_thinking": True}},
+                            "samplingParams": {
+                                "temperature": 0.6,
+                                "top_p": 0.95,
+                                "top_k": 20,
+                                "presence_penalty": 0,
+                                "repetition_penalty": 1,
+                                "max_tokens": 32768,
+                                "seed": seed,
+                            },
+                        },
+                    }
+                ]
+            },
             "security": {"auth": {"selectedType": "openai"}},
             "model": {"name": self.opts.model_dir},
             "tools": tools,
@@ -201,8 +237,10 @@ class BenchQwenCode(QwenCode):
 
     async def _kill_agent(self, environment: BaseEnvironment) -> None:
         # after harbor's timeout the docker exec client is gone but the node process would keep running during the tests
-        cmd = ('pat="cli-ent""ry.js"; for p in /proc/[0-9]*; do tr "\\0" " " < "$p/cmdline" 2>/dev/null | grep -q "$pat" '
-               '&& kill -9 "${p#/proc/}" 2>/dev/null; done; true')
+        cmd = (
+            'pat="cli-ent""ry.js"; for p in /proc/[0-9]*; do tr "\\0" " " < "$p/cmdline" 2>/dev/null | grep -q "$pat" '
+            '&& kill -9 "${p#/proc/}" 2>/dev/null; done; true'
+        )
         try:
             await asyncio.wait_for(environment.exec(command=cmd, user="root"), timeout=30)
         except Exception:  # noqa: BLE001
@@ -231,19 +269,42 @@ class BenchQwenCode(QwenCode):
             (logs / "prompt.txt").write_text(instruction)
             for p in (logs, qhome, qhome / "settings.json", logs / "prompt.txt"):
                 os.chmod(p, 0o777 if p.is_dir() else 0o666)
-            (logs / "trial_meta.json").write_text(json.dumps({
-                "task": task_name, "seed": seed, "model": self.opts.model_dir, "model_label": self.model_name,
-                "upstream_port": upstream, "proxy_port": port, "client_endpoint": client_endpoint,
-                "exclude_agent_tool": exclude_agent, "condition": self.opts.condition, "started_at": started_at}, indent=1))
+            (logs / "trial_meta.json").write_text(
+                json.dumps(
+                    {
+                        "task": task_name,
+                        "seed": seed,
+                        "model": self.opts.model_dir,
+                        "model_label": self.model_name,
+                        "upstream_port": upstream,
+                        "proxy_port": port,
+                        "client_endpoint": client_endpoint,
+                        "exclude_agent_tool": exclude_agent,
+                        "condition": self.opts.condition,
+                        "started_at": started_at,
+                    },
+                    indent=1,
+                )
+            )
             env = {
-                "OMP_NUM_THREADS": "2", "MKL_NUM_THREADS": "2", "OPENBLAS_NUM_THREADS": "2", "NUMEXPR_NUM_THREADS": "2",
-                "OPENMM_CPU_THREADS": "2", "LOKY_MAX_CPU_COUNT": "4", "QWEN_STREAM_IDLE_TIMEOUT_MS": "600000",
-                "QWEN_HOME": f"{AGENT_LOGS}/qwen_home", "VLLM_API_KEY": "EMPTY", "QWEN_TELEMETRY_ENABLED": "false",
-                "QWEN_CODE_SUPPRESS_YOLO_WARNING": "1", "NO_PROXY": "host.docker.internal,127.0.0.1,localhost",
+                "OMP_NUM_THREADS": "2",
+                "MKL_NUM_THREADS": "2",
+                "OPENBLAS_NUM_THREADS": "2",
+                "NUMEXPR_NUM_THREADS": "2",
+                "OPENMM_CPU_THREADS": "2",
+                "LOKY_MAX_CPU_COUNT": "4",
+                "QWEN_STREAM_IDLE_TIMEOUT_MS": "600000",
+                "QWEN_HOME": f"{AGENT_LOGS}/qwen_home",
+                "VLLM_API_KEY": "EMPTY",
+                "QWEN_TELEMETRY_ENABLED": "false",
+                "QWEN_CODE_SUPPRESS_YOLO_WARNING": "1",
+                "NO_PROXY": "host.docker.internal,127.0.0.1,localhost",
             }
-            cmd = (f"qwen --model {shlex.quote(self.opts.model_dir)} --approval-mode yolo --output-format stream-json "
-                   f"< {AGENT_LOGS}/prompt.txt > {AGENT_LOGS}/qwen_stream.jsonl 2> {AGENT_LOGS}/qwen_stderr.log; "
-                   f"echo $? > {AGENT_LOGS}/qwen_exit_code")
+            cmd = (
+                f"qwen --model {shlex.quote(self.opts.model_dir)} --approval-mode yolo --output-format stream-json "
+                f"< {AGENT_LOGS}/prompt.txt > {AGENT_LOGS}/qwen_stream.jsonl 2> {AGENT_LOGS}/qwen_stderr.log; "
+                f"echo $? > {AGENT_LOGS}/qwen_exit_code"
+            )
             try:
                 await self.exec_as_agent(environment, command=cmd, env=env)
             except asyncio.CancelledError:
@@ -279,8 +340,7 @@ class BenchQwenCode(QwenCode):
                     pass
         return out
 
-    def _finish(self, logs: Path, started_at: str, seed: int, upstream: int, port: int, task_name: str,
-                timed_out: bool, exclude_agent: bool) -> dict:
+    def _finish(self, logs: Path, started_at: str, seed: int, upstream: int, port: int, task_name: str, timed_out: bool, exclude_agent: bool) -> dict:
         finished_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         events = self._events(logs / "qwen_stream.jsonl")
         result = next((e for e in reversed(events) if e.get("type") == "result"), None)
@@ -306,8 +366,7 @@ class BenchQwenCode(QwenCode):
                 if len(calls) >= 5:
                     break
             message = error.get("message") if isinstance(error, dict) else str(error)
-            failure = {"subtype": result.get("subtype"), "message": (message or "")[:1500] or None,
-                       "last_tool_calls_most_recent_first": calls[:5]}
+            failure = {"subtype": result.get("subtype"), "message": (message or "")[:1500] or None, "last_tool_calls_most_recent_first": calls[:5]}
         if infra and not timed_out:
             trace_has_success = False
             failure = {"subtype": "api_error_infra", "message": txt[:300], "last_tool_calls_most_recent_first": []}
@@ -343,16 +402,34 @@ class BenchQwenCode(QwenCode):
             pass
         self._usage = usage
         status = {
-            "started_at": started_at, "finished_at": finished_at, "model": self.opts.model_dir, "model_label": self.model_name,
-            "endpoint": f"http://127.0.0.1:{upstream}/v1", "seed": seed, "qwen_code_version": self._version or "0.20.0",
-            "exit_code": exit_code, "trace_has_success_result": trace_has_success, "failure": failure,
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "model": self.opts.model_dir,
+            "model_label": self.model_name,
+            "endpoint": f"http://127.0.0.1:{upstream}/v1",
+            "seed": seed,
+            "qwen_code_version": self._version or "0.20.0",
+            "exit_code": exit_code,
+            "trace_has_success_result": trace_has_success,
+            "failure": failure,
             "execution_mode": "harbor_container_yolo",
-            "operational_limits": {"http_response_timeout_ms": 1800000, "foreground_shell_timeout_ms": 600000,
-                                   "context_window_tokens": 262144, "max_tokens_per_model_response": 32768},
-            "bench": {"task": task_name, "condition": self.opts.condition, "exclude_agent_tool": exclude_agent,
-                      "timed_out": timed_out, "client_endpoint": f"http://host.docker.internal:{port}/v1",
-                      "api_log": api_log_final, "api_requests": n_req, "usage": usage,
-                      "env_policy": "OMP=2,MKL=2,OPENBLAS=2,NUMEXPR=2,OPENMM=2,LOKY=4,STREAM_IDLE_MS=600000"},
+            "operational_limits": {
+                "http_response_timeout_ms": 1800000,
+                "foreground_shell_timeout_ms": 600000,
+                "context_window_tokens": 262144,
+                "max_tokens_per_model_response": 32768,
+            },
+            "bench": {
+                "task": task_name,
+                "condition": self.opts.condition,
+                "exclude_agent_tool": exclude_agent,
+                "timed_out": timed_out,
+                "client_endpoint": f"http://host.docker.internal:{port}/v1",
+                "api_log": api_log_final,
+                "api_requests": n_req,
+                "usage": usage,
+                "env_policy": "OMP=2,MKL=2,OPENBLAS=2,NUMEXPR=2,OPENMM=2,LOKY=4,STREAM_IDLE_MS=600000",
+            },
         }
         (logs / "run_status.json").write_text(json.dumps(status, indent=1) + "\n")
         return status

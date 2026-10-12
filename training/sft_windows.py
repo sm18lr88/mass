@@ -1,5 +1,4 @@
-# Renders conversations into tokenized blocks with loss masks and packs them into SFT windows (torch-free).
-"""Block rendering (any HF-style tokenizer object) and window packing for SFT data."""
+"""Torch-free block rendering (any HF-style tokenizer object) with loss masks, and window packing for SFT data."""
 
 from typing import Any
 

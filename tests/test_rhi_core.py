@@ -1,5 +1,4 @@
-# End-to-end check of the RHI entry point (evaluate-only champion retention) with a fake backend.
-"""Optional core-dependency check: real RHI entry point with a fake model backend."""
+"""Optional core-dependency check: the real RHI entry point (evaluate-only champion retention) with a fake model backend."""
 
 import importlib.util
 import sys

@@ -1,5 +1,7 @@
-# Stage CLI: argument parsing, task-set resolution, and the explicit stage dispatch table.
-"""Portable orchestration of RHI -> post-training -> the next MASS cycle."""
+"""Portable orchestration of RHI -> post-training -> the next MASS cycle.
+
+Stage CLI: argument parsing, task-set resolution, and the explicit stage dispatch table.
+"""
 
 import argparse
 import json

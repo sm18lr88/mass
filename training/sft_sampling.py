@@ -1,5 +1,4 @@
-# Loads SFT windows, splits validation episodes, and draws deterministic task/role-balanced samples (torch-free).
-"""Window loading and seeded samplers used by train_sft_lora.py."""
+"""Torch-free SFT window loading, validation-episode split, and seeded task/role-balanced samplers used by train_sft_lora.py."""
 
 import argparse
 import json

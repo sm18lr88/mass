@@ -1,5 +1,4 @@
-# Aggregate ScienceAgentBench trial scores from official evaluator output.
-"""Aggregate per-trial metrics; never substitute published values for outputs."""
+"""Aggregate ScienceAgentBench per-trial scores from official evaluator output; never substitute published values for outputs."""
 import argparse
 import json
 from pathlib import Path

@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# CLI: quantizes a merged BF16 checkpoint to the official block-wise FP8 layout, or verifies the scheme.
 """Quantize a merged BF16 Qwen3.6-27B checkpoint into the SAME layout as the
 official Qwen/Qwen3.6-27B-FP8 checkpoint (block-wise 128x128 float8_e4m3fn
 weights + bf16 `weight_scale_inv`), using the official FP8 checkpoint as the

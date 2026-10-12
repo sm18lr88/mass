@@ -1,5 +1,4 @@
-# Offline tests for JSON extraction, usage parsing, and bounded background polling.
-"""Tests for harness_improvement.llm_backend / llm_json (no network)."""
+"""Offline tests for harness_improvement.llm_backend / llm_json: JSON extraction, usage parsing, and bounded background polling."""
 
 from __future__ import annotations
 

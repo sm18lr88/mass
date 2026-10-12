@@ -1,5 +1,4 @@
-# Aggregate MLR-Bench judge reviews into per-generation scores.
-"""Aggregate the official-rubric reviews, requiring both judges and all tasks."""
+"""Aggregate MLR-Bench official-rubric judge reviews into per-generation scores, requiring both judges and all tasks."""
 import argparse
 import collections
 import json

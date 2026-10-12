@@ -71,15 +71,21 @@ class ArchitectureTests(unittest.TestCase):
         ]
         self.assertEqual(violations, [])
 
-    def test_every_python_file_starts_with_a_responsibility_comment(self):
-        missing = []
+    def test_every_python_file_states_its_responsibility_once(self):
+        # The module docstring states the responsibility; a file without one starts with a `# ` comment instead.
+        missing, doubled = [], []
         for path in python_files(*REPO_PACKAGES):
-            lines = path.read_text(encoding="utf-8").splitlines()
+            text = path.read_text(encoding="utf-8")
+            lines = text.splitlines()
             while lines and (lines[0].startswith("#!") or lines[0].startswith("# -*-")):
                 lines.pop(0)
-            if lines and not re.match(r"# \S", lines[0]):
+            if ast.get_docstring(ast.parse(text)):
+                if lines and lines[0].startswith("#"):
+                    doubled.append(rel(path))
+            elif lines and not re.match(r"# \S", lines[0]):
                 missing.append(rel(path))
         self.assertEqual(missing, [])
+        self.assertEqual(doubled, [])
 
     def test_logging_proxy_copies_are_identical(self):
         self.assertEqual((ROOT / "runtime/api_proxy.py").read_bytes(), (ROOT / "benchmarks/scripts/bench_api_proxy.py").read_bytes())

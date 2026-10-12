@@ -1,5 +1,4 @@
-# Pair two rollout manifests by task and replicate and write the joined workspace list without scoring.
-"""Pair two generation rollout manifests on task and replicate, without judging."""
+"""Pair two generation rollout manifests on task and replicate and write the joined workspace list, without judging."""
 
 import argparse
 import json

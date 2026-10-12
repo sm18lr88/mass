@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# Logging reverse proxy that records exact LLM requests/responses for SFT data rendering.
 """Byte-faithful logging reverse proxy for an OpenAI-compatible vLLM replica.
 
     api_proxy.py --listen 9001 --upstream http://127.0.0.1:8001 --log api_requests.jsonl

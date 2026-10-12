@@ -1,6 +1,4 @@
-#!/usr/bin/env python3
-# CLI: LoRA SFT of the Qwen3.5/3.6 model (FSDP2 / pipeline / pp_ddp) on rendered windows with validation.
-"""LoRA SFT with task-uniform, role-balanced sampling and validation loss."""
+"""LoRA SFT of the Qwen3.5/3.6 model (FSDP2 / pipeline / pp_ddp) on rendered windows, with task-uniform, role-balanced sampling and validation loss."""
 
 import argparse
 import json
