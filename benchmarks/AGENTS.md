@@ -30,6 +30,7 @@ Generated and gitignored: `vendor/`, `work/` (override with `MASS_BENCH_ROOT`), 
 ## CONVENTIONS
 - Setup uses `.venv-bench` from the root `pyproject.toml` `bench` group (`uv sync --locked --no-dev --group bench --inexact`), then `uv pip install -e benchmarks/vendor/harbor`; run `fetch_sources.py` first. Scripts import `harbor`, so they are not importable from the core venv (tests load only harbor-free modules by path).
 - `run.py` sets `PYTHONPATH=scripts` so Harbor resolves `bench_qwen_code_agent:BenchQwenCode`; it hard-checks 102 SAB / 12 MLR task dirs before launching.
+- SAB's own top-level package is also named `evaluation`. `prepare_sab_base.py` runs it in a subprocess with `cwd`/`PYTHONPATH` = `vendor/ScienceAgentBench`; never import SAB evaluator code in a process where the repo root is on `sys.path`.
 - Each concurrent Harbor job needs its own proxy port block (`--proxy-base`, 200 ports, range 9100-9899). Proxy binds the Docker bridge (`--proxy-host`, default 172.17.0.1).
 
 ## ANTI-PATTERNS

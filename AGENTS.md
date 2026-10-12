@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-10-12
-**Commit:** fb40358
+**Commit:** 0eeb226
 **Branch:** main
 
 ## OVERVIEW
@@ -13,11 +13,13 @@ MASS: research code for recursive self-improvement. RHI (workflow search with fr
 ```
 mass/
 ├── mass/                   # stage driver: python -m mass <stage>; pipeline.py = CLI + STAGES table; config/episodes/collection/selection/sft/reporting modules; process.run = the one subprocess seam
-├── harness_improvement/    # RHI optimizer; iterate_multi_agent_prompt.py is a thin entry over rhi_*.py, invoked as a subprocess
+├── harness_improvement/    # RHI optimizer; thin entry iterate_multi_agent_prompt.py over rhi_*.py, run as a subprocess; own AGENTS.md
 ├── runtime/                # run_episode.sh (one qwen-code episode) + api_proxy.py (request logger for SFT)
-├── training/               # prepare_sft_data (render+mask), train_sft_lora (FSDP2/pp_ddp), merge_lora, FP8 quantize
-├── evaluation/             # workspace evidence bundling for judges
-├── evaluation_claudecodex/ # pairwise judge prompts/schema (OpenAI, Anthropic, local vLLM)
+├── training/               # prepare_sft_data (render+mask), train_sft_lora (fsdp2/pp/pp_ddp), merge_lora, FP8 quantize; own AGENTS.md
+├── evaluation/             # workspace evidence bundling for judges; its AGENTS.md also covers evaluation_claudecodex/
+├── evaluation_claudecodex/ # pairwise judge prompts/schema/provider adapters (OpenAI, Anthropic, Google)
+├── tests/                  # offline unittest suite; test_architecture.py enforces layers + file headers
+├── docs/                   # running, development (manifest hash snippet), paper_to_code, reproduction
 ├── benchmarks/             # ScienceAgentBench + MLR-Bench adapters (Docker/Harbor); own venv, see benchmarks/AGENTS.md
 ├── tasks/                  # 12 task prompts: bare/query<ID>.txt, initial/query<ID>_ourTeam.txt, splits.json
 ├── configs/                # paper.json (cycle 1), cycle2.json, models.json (pinned HF revisions)
@@ -32,7 +34,7 @@ mass/
 | Add/change a pipeline stage        | `mass/pipeline.py` `STAGES` + the stage module                            | handlers resolve stage functions via their module so tests can patch them      |
 | Config invariants                  | `mass/config.py` `validate`                                               | split disjointness, loopback endpoint, 3 windows/step                          |
 | RHI proposal/judging logic         | `harness_improvement/rhi_*.py` (prompts in `rhi_prompt.py`)               | prompt strings are protocol; keep byte-identical                               |
-| Dependency direction / conventions | `tests/test_architecture.py`                                              | layer rule, lazy heavy imports in mass/, responsibility comments, proxy copies |
+| Dependency direction / conventions | `tests/test_architecture.py`                                              | layers: evaluation < evaluation_claudecodex < harness_improvement < mass (import only own + lower); runtime/training/tools import only themselves; benchmarks never imports mass/harness_improvement/training/runtime/evaluation_claudecodex. Also lazy heavy imports in mass/, one responsibility header (docstring, else `#` comment), proxy copies |
 | Local/remote LLM JSON calls        | `harness_improvement/llm_backend.py` `JsonLLMBackend`                     | used by RHI and `mass.judging.self_judge`                                      |
 | Self vs external judging           | `mass/judging.py`                                                         | self = current model; external = gpt-5.5 + claude-opus-4-8, seeds 42-44        |
 | Ranking                            | `mass/ranking.py` `bradley_terry`, `mass/selection.py` `tournament_pairs` |                                                                                |
@@ -42,18 +44,20 @@ mass/
 
 ## CODE MAP
 
-| Symbol                               | Type     | Location                                  | Role                                                                    |
-| ------------------------------------ | -------- | ----------------------------------------- | ----------------------------------------------------------------------- |
-| `main` / `STAGES`                    | fn       | mass/pipeline.py                          | CLI: plan/search/collect/rank/select/render/train/export/rollout/report |
-| `validate` / `freeze_config`         | fn       | mass/config.py                            | config checks; run_dir config is frozen on first stage                  |
-| `episode` / `completed`              | fn       | mass/episodes.py                          | runs `runtime/run_episode.sh`; reuse only if exit 0 + success trace     |
-| `run`                                | fn       | mass/process.py                           | every external command; call as `process.run(...)`                      |
-| `search` / `collect`                 | fn       | mass/collection.py                        | bare reference + v0..vN workflows, shells out to RHI                    |
-| `best_checkpoint`                    | fn       | mass/sft.py                               | min finite val_loss among saved `step_NNNNN` dirs                       |
-| `ROOT`, `package_path`, `write_json` | fn       | mass/io.py                                | repo-relative paths; atomic JSON writes                                 |
-| `JsonLLMBackend`                     | class    | harness_improvement/llm_backend.py        | JSON-mode LLM client                                                    |
-| `build_judge_bundle`                 | fn       | evaluation/bundle.py                      | workspace -> judge evidence                                             |
-| `PairwiseJudgeResult`                | pydantic | evaluation_claudecodex/pairwise_schema.py | judge verdict schema                                                    |
+Refs = .py files mentioning the symbol (qualified call pattern for generic names), definer included.
+
+| Symbol                               | Type     | Location                                  | Refs | Role                                                                    |
+| ------------------------------------ | -------- | ----------------------------------------- | ---- | ----------------------------------------------------------------------- |
+| `main` / `STAGES`                    | fn       | mass/pipeline.py                          | 2    | CLI: plan/search/collect/rank/select/render/train/export/rollout/report |
+| `validate` / `freeze_config`         | fn       | mass/config.py                            | 5/3  | config checks; run_dir config is frozen on first stage                  |
+| `episode` / `completed`              | fn       | mass/episodes.py                          | 4/2  | runs `runtime/run_episode.sh`; reuse only if exit 0 + success trace     |
+| `run`                                | fn       | mass/process.py                           | 4    | every external command; call as `process.run(...)`                      |
+| `search` / `collect`                 | fn       | mass/collection.py                        | 3/1  | bare reference + v0..vN workflows, shells out to RHI                    |
+| `best_checkpoint`                    | fn       | mass/sft.py                               | 3    | min finite val_loss among saved `step_NNNNN` dirs                       |
+| `ROOT`, `package_path`, `write_json` | fn       | mass/io.py                                | -/3/8 | repo-relative paths; atomic JSON writes                                |
+| `JsonLLMBackend`                     | class    | harness_improvement/llm_backend.py        | 9    | JSON-mode LLM client (OpenAI Responses or local vLLM)                   |
+| `build_judge_bundle`                 | fn       | evaluation/bundle.py                      | 7    | workspace -> judge evidence                                             |
+| `PairwiseJudgeResult`                | pydantic | evaluation_claudecodex/pairwise_schema.py | 7    | judge verdict schema                                                    |
 
 ## CONVENTIONS
 
@@ -85,11 +89,11 @@ mass/
 ```bash
 # Offline checks (what CI runs, Python 3.12 + 3.13 + 3.14); deps in pyproject.toml, locked in uv.lock
 uv sync --locked
-uv run ruff check
-uv run python -m unittest discover -s tests -v
-uv run python -m mass plan --config configs/paper.json
-uv run python -m mass plan --config configs/cycle2.json
-uv run python tools/check_source.py
+uv run --locked ruff check
+uv run --locked python -m unittest discover -s tests -v
+uv run --locked python -m mass plan --config configs/paper.json
+uv run --locked python -m mass plan --config configs/cycle2.json
+uv run --locked python tools/check_source.py
 
 # Changing a pin: edit pyproject.toml, `uv lock`, commit both. Groups: dev (default), train, serve, bench.
 
