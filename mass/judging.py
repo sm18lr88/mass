@@ -1,12 +1,18 @@
+# Pairwise trajectory judging: self-judge (current model) for ranking, external judges for reporting.
 """Self-evaluation uses the current generation; reporting uses external judges."""
+from collections.abc import Collection, Iterator
 import os
+from pathlib import Path
 import random
 
+# Explicit per-request timeout for the external provider clients (the SDKs' default read timeout).
+EXTERNAL_TIMEOUT_S = 600.0
 
-def bundles(task, workspace_a, workspace_b):
+
+def bundles(task: int, workspace_a: Path, workspace_b: Path) -> list:
     from evaluation.bundle import build_judge_bundle
     from .io import ROOT
-    task_text = (ROOT / f"tasks/bare/query{task}.txt").read_text()
+    task_text = (ROOT / f"tasks/bare/query{task}.txt").read_text(encoding="utf-8")
     task_text = task_text.split("Use uv for all Python workflows")[0].replace("\\n", "\n").strip()
     row = {"query_id": f"query_{task}", "query": task_text}
     return [build_judge_bundle(memory_root=p, task_row=row, log_path=None,
@@ -15,7 +21,7 @@ def bundles(task, workspace_a, workspace_b):
             for p in (workspace_a, workspace_b)]
 
 
-def self_judge(config, task, workspace_a, workspace_b, seed):
+def self_judge(config: dict, task: int, workspace_a: Path, workspace_b: Path, seed: int) -> dict:
     from harness_improvement.llm_backend import JsonLLMBackend
     from evaluation_claudecodex.pairwise_judge import build_pairwise_user_message
     from evaluation_claudecodex.pairwise_prompts import pairwise_judge_system_for_query_num
@@ -33,14 +39,15 @@ def self_judge(config, task, workspace_a, workspace_b, seed):
             "model": config["model_id"], "seed": seed, "metrics": result.metrics}
 
 
-def external_judgments(task, workspace_a, workspace_b, skip=()):
+def external_judgments(task: int, workspace_a: Path, workspace_b: Path,
+                       skip: Collection[tuple[str, int]] = ()) -> Iterator[dict]:
     from openai import OpenAI
     from anthropic import Anthropic
     from evaluation_claudecodex.pairwise_judge import run_pairwise_judge
     a, b = bundles(task, workspace_a, workspace_b)
     for provider, model, effort, client in [
-        ("openai", "gpt-5.5", "xhigh", OpenAI(max_retries=0)),
-        ("anthropic", "claude-opus-4-8", "max", Anthropic(max_retries=0)),
+        ("openai", "gpt-5.5", "xhigh", OpenAI(max_retries=0, timeout=EXTERNAL_TIMEOUT_S)),
+        ("anthropic", "claude-opus-4-8", "max", Anthropic(max_retries=0, timeout=EXTERNAL_TIMEOUT_S)),
     ]:
         for seed in [42, 43, 44]:
             if (provider, seed) in skip:

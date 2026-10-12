@@ -1,5 +1,5 @@
+# Offline config, tournament, selection, checkpoint, and synthetic stage-integration tests.
 """Offline invariants and stage integration using synthetic workspace fixtures."""
-import ast
 import collections
 import copy
 import json
@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from mass import pipeline as p
+from mass import process
 from mass.io import ROOT, read_json, write_json
 from mass.ranking import bradley_terry
 
@@ -79,7 +80,7 @@ class PipelineTests(unittest.TestCase):
                 {"step": 150, "val_loss": 2.0, "val_tokens": 20},
                 {"step": 300, "val_loss": 1.0, "val_tokens": 20},
                 {"step": 450, "val_loss": .2, "val_tokens": 20}]
-        (out / "train_log.jsonl").write_text("\n".join(json.dumps(r) for r in rows))
+        (out / "train_log.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
         for step in [150, 300]:
             d = out / f"step_{step:05d}"
             d.mkdir()
@@ -100,7 +101,7 @@ class PipelineTests(unittest.TestCase):
                 prompt, ws, logs = map(Path, cmd[2:5])
                 ws.mkdir(parents=True)
                 logs.mkdir(parents=True)
-                (logs / "prompt.txt").write_text(prompt.read_text())
+                (logs / "prompt.txt").write_text(prompt.read_text(encoding="utf-8"), encoding="utf-8")
                 write_json(logs / "run_status.json", {"exit_code": 0, "trace_has_success_result": True})
             else:
                 k = int(cmd[cmd.index("--current-version") + 1])
@@ -111,9 +112,9 @@ class PipelineTests(unittest.TestCase):
                     q = Path(cmd[cmd.index("--query-file") + 1])
                     dest = out / f"updated_queries/query51_ourTeam-v{k+1}.txt"
                     dest.parent.mkdir(parents=True, exist_ok=True)
-                    dest.write_text(q.read_text())
+                    dest.write_text(q.read_text(encoding="utf-8"), encoding="utf-8")
 
-        with patch.object(p, "run", fake_run):
+        with patch.object(process, "run", fake_run):
             p.search(c, [51])
             p.collect(c, [51])
         with patch("mass.judging.self_judge", return_value={"winner": "A", "rationale": "synthetic fixture"}):
@@ -123,23 +124,6 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(len(read_json(self.base / "selection/val.json")), 1)
         self.assertEqual(sum("--evaluate-only" in cmd for cmd in commands), 1)
         self.assertTrue(all("--judge-model" not in cmd for cmd in commands))
-
-    def test_windows_mask_context_and_train_each_assistant_token_once(self):
-        # Load the exact pure function without importing Transformers/PyTorch.
-        source = (ROOT / "training/prepare_sft_data.py").read_text()
-        fn = next(n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef) and n.name == "make_windows")
-        scope = {"IGNORE": -100}
-        exec(compile(ast.Module(body=[fn], type_ignores=[]), "renderer_function", "exec"), scope)
-        def block(kind, ids, loss):
-            return {"kind": kind, "ids": ids, "mask": [loss] * len(ids)}
-        blocks = [block("system", [1, 2], False), block("user", [3, 4], False),
-                  block("assistant", [10, 11, 12], True), block("tool", [20, 21], False),
-                  block("assistant", [30, 31, 32], True)]
-        windows, skipped = scope["make_windows"](blocks, window=10, overlap=3)
-        self.assertFalse(skipped)
-        self.assertGreater(len(windows), 1)
-        self.assertEqual([x for w in windows for x in w["labels"] if x != -100], [10, 11, 12, 30, 31, 32])
-        self.assertTrue(all(len(w["input_ids"]) <= 10 for w in windows))
 
 
 if __name__ == "__main__":

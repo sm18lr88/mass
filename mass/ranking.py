@@ -1,7 +1,11 @@
+# Bradley-Terry scores from pairwise trajectory verdicts.
 """Bradley--Terry fitting for within-task trajectory comparisons."""
+from collections.abc import Mapping, Sequence
 import math
 
-def bradley_terry(episodes, matches, iters=500, prior=0.5):
+
+def bradley_terry(episodes: Sequence[str], matches: Mapping[tuple[str, str], Mapping[str, str]],
+                  iters: int = 500, prior: float = 0.5) -> dict[str, float]:
     """MM algorithm with a weak prior (each episode gets `prior` virtual wins/losses vs the mean)."""
     idx = {e: i for i, e in enumerate(episodes)}
     n = len(episodes)
@@ -15,7 +19,8 @@ def bradley_terry(episodes, matches, iters=500, prior=0.5):
             elif lab == b:
                 wins[idx[b]][idx[a]] += 1
             else:
-                wins[idx[a]][idx[b]] += 0.5; wins[idx[b]][idx[a]] += 0.5
+                wins[idx[a]][idx[b]] += 0.5
+                wins[idx[b]][idx[a]] += 0.5
     p = [1.0] * n
     for _ in range(iters):
         newp = []

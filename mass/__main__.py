@@ -1,3 +1,4 @@
+# Entry point for `python -m mass <stage>`.
 from .pipeline import main
 
 if __name__ == "__main__":
