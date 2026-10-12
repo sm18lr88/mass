@@ -1,3 +1,4 @@
+# End-to-end check of the RHI entry point (evaluate-only champion retention) with a fake backend.
 """Optional core-dependency check: real RHI entry point with a fake model backend."""
 import importlib.util
 from pathlib import Path
@@ -32,7 +33,7 @@ class RHICoreTests(unittest.TestCase):
             out = base / "search"
             (out / "versions").mkdir(parents=True)
             for v in [0, 1]:
-                (out / f"versions/multi_agent_design_v{v}.txt").write_text(template.design_block)
+                (out / f"versions/multi_agent_design_v{v}.txt").write_text(template.design_block, encoding="utf-8")
                 (base / f"v{v}/query51_ourTeam").mkdir(parents=True)
             (base / "reference/query51").mkdir(parents=True)
             argv = ["rhi", "--query-file", str(prompt), "--current-version", "1", "--out-dir", str(out),
