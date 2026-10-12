@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Logging reverse proxy that records exact LLM requests/responses for SFT data rendering.
 """Byte-faithful logging reverse proxy for an OpenAI-compatible vLLM replica.
 
     api_proxy.py --listen 9001 --upstream http://127.0.0.1:8001 --log api_requests.jsonl
@@ -18,9 +19,7 @@ student will see. Nothing is modified in either direction.
 import argparse
 import asyncio
 import json
-import os
 import signal
-import sys
 import time
 
 from aiohttp import ClientSession, ClientTimeout, web
@@ -111,13 +110,13 @@ def assemble_sse(raw: bytes) -> dict:
             "usage": usage, "n_chunks": n_chunks, "n_bad_chunks": n_bad}
 
 
-def write_log(app, rec):
+def write_log(app: web.Application, rec: dict) -> None:
     f = app["log_fh"]
     f.write(json.dumps(rec, ensure_ascii=False) + "\n")
     f.flush()
 
 
-async def handle(request: web.Request):
+async def handle(request: web.Request) -> web.StreamResponse:
     app = request.app
     body = await request.read()
     url = app["upstream"] + request.rel_url.path_qs
@@ -138,6 +137,7 @@ async def handle(request: web.Request):
     else:
         rec["request"] = None
     session: ClientSession = app["session"]
+    out: web.StreamResponse | None = None
     try:
         async with session.request(request.method, url, headers=headers, data=body,
                                    allow_redirects=False) as resp:
@@ -182,10 +182,12 @@ async def handle(request: web.Request):
             return web.Response(status=resp.status, headers=resp_headers, body=data)
     except web.HTTPException:
         raise
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001 - every upstream failure must be logged for the SFT record
         rec["proxy_error"] = repr(e)
         rec["duration_s"] = round(time.time() - t0, 3)
         write_log(app, rec)
+        if out is not None and out.prepared:
+            return out  # headers already sent; cannot switch to a 502
         return web.Response(status=502, text=f"proxy error: {e!r}")
 
 
