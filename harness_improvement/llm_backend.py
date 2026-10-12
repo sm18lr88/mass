@@ -1,3 +1,4 @@
+# JSON-mode LLM client (OpenAI Responses or local vLLM chat) for RHI and judging.
 """JSON-only LLM backends for recursive harness improvement.
 
 The historical RHI path used OpenAI's Responses API.  The local path uses the
@@ -8,21 +9,47 @@ same explicitly selected backend.
 
 from __future__ import annotations
 
-import json
-import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
 from openai import OpenAI
 
 from evaluation.openai_responses import responses_create_adaptive
 from evaluation.responses_metrics import ResponsesCallMetrics
+from harness_improvement.llm_json import (
+    LLMJsonError,
+    chat_usage_metrics as _chat_usage_metrics,
+    extract_json_object as _extract_json_object,
+    responses_text as _responses_text,
+)
 
+__all__ = [
+    "BACKEND_CHOICES",
+    "BACKEND_LOCAL_VLLM",
+    "BACKEND_OPENAI_RESPONSES",
+    "BackgroundResponseTimeout",
+    "JsonCallResult",
+    "JsonLLMBackend",
+    "LLMJsonError",
+]
 
 BACKEND_OPENAI_RESPONSES = "openai-responses"
 BACKEND_LOCAL_VLLM = "local-vllm"
 BACKEND_CHOICES = (BACKEND_OPENAI_RESPONSES, BACKEND_LOCAL_VLLM)
+
+# Read/write/pool timeout is the caller's ``timeout_seconds`` (default 1 hour):
+# long non-streaming reasoning generations legitimately produce no bytes for
+# many minutes. Connecting is fast or never, so it gets a short bound.
+DEFAULT_TIMEOUT_SECONDS = 3600.0
+CONNECT_TIMEOUT_SECONDS = 30.0
+MAX_CONSECUTIVE_POLL_ERRORS = 5
+
+
+class BackgroundResponseTimeout(TimeoutError):
+    """A background Responses job did not reach a terminal status in time."""
 
 
 def _await_background_response(
@@ -31,6 +58,8 @@ def _await_background_response(
     *,
     timeout_seconds: float,
     poll_interval_seconds: float = 30.0,
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> Any:
     """Poll a background Responses job until it reaches a terminal status.
 
@@ -39,22 +68,25 @@ def _await_background_response(
     can never arrive, so the client waits until its own timeout). Background
     mode sidesteps that: the create returns immediately and each poll is a
     short, fresh HTTPS request.
+
+    Polling is bounded by ``timeout_seconds`` (raises BackgroundResponseTimeout)
+    and by consecutive retrieve failures (the last error is re-raised).
     """
-    deadline = time.monotonic() + timeout_seconds
+    deadline = clock() + timeout_seconds
     consecutive_poll_errors = 0
     while getattr(response, "status", None) in ("queued", "in_progress"):
-        if time.monotonic() > deadline:
-            raise TimeoutError(
+        if clock() > deadline:
+            raise BackgroundResponseTimeout(
                 f"Background response {response.id} still "
                 f"{response.status!r} after {timeout_seconds:.0f}s"
             )
-        time.sleep(poll_interval_seconds)
+        sleep(poll_interval_seconds)
         try:
             response = client.responses.retrieve(response.id)
             consecutive_poll_errors = 0
         except Exception:
             consecutive_poll_errors += 1
-            if consecutive_poll_errors > 5:
+            if consecutive_poll_errors > MAX_CONSECUTIVE_POLL_ERRORS:
                 raise
     if getattr(response, "status", None) != "completed":
         raise RuntimeError(
@@ -71,92 +103,6 @@ class JsonCallResult:
     payload: dict[str, Any]
     raw_text: str
     metrics: dict[str, Any]
-
-
-def _extract_json_object(raw: str) -> dict[str, Any]:
-    text = raw.strip()
-    if not text:
-        raise RuntimeError("LLM returned an empty response.")
-    try:
-        value = json.loads(text)
-    except json.JSONDecodeError:
-        # Fallback candidates, tried in order; accept the first that parses.
-        # The outermost-brace slice comes first: a fenced ``` block can also
-        # appear ESCAPED inside a JSON string value (e.g. a design text that
-        # itself contains a code fence), in which case the fenced regex
-        # captures an unparseable fragment.
-        candidates = []
-        start = text.find("{")
-        end = text.rfind("}")
-        if start >= 0 and end > start:
-            candidates.append(text[start : end + 1])
-        fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL)
-        if fenced:
-            candidates.append(fenced.group(1))
-        if not candidates:
-            raise RuntimeError(f"LLM returned non-JSON output:\n{text[:4000]}")
-        value = None
-        last_exc: Exception | None = None
-        for candidate in candidates:
-            try:
-                value = json.loads(candidate)
-                break
-            except json.JSONDecodeError as exc:
-                last_exc = exc
-        if value is None:
-            raise RuntimeError(
-                f"LLM returned invalid JSON: {last_exc}\n---\n{text[:4000]}"
-            ) from last_exc
-    if not isinstance(value, dict):
-        raise RuntimeError(f"LLM returned JSON {type(value).__name__}; expected an object.")
-    return value
-
-
-def _responses_text(response: Any) -> str:
-    raw = getattr(response, "output_text", None)
-    if isinstance(raw, str) and raw.strip():
-        return raw.strip()
-    for item in getattr(response, "output", None) or []:
-        if getattr(item, "type", None) != "message":
-            continue
-        for block in getattr(item, "content", None) or []:
-            if getattr(block, "type", None) == "output_text":
-                text = getattr(block, "text", "")
-                if isinstance(text, str) and text.strip():
-                    return text.strip()
-    return ""
-
-
-def _chat_usage_metrics(response: Any, *, model: str) -> dict[str, Any]:
-    usage_obj = getattr(response, "usage", None)
-    usage_raw: dict[str, Any] = {}
-    if usage_obj is not None and hasattr(usage_obj, "model_dump"):
-        dumped = usage_obj.model_dump()
-        if isinstance(dumped, dict):
-            usage_raw = dumped
-    prompt_tokens = int(usage_raw.get("prompt_tokens") or 0)
-    completion_tokens = int(usage_raw.get("completion_tokens") or 0)
-    total_tokens = int(
-        usage_raw.get("total_tokens") or (prompt_tokens + completion_tokens)
-    )
-    usage: dict[str, Any] = {
-        "input_tokens": prompt_tokens,
-        "output_tokens": completion_tokens,
-        "total_tokens": total_tokens,
-    }
-    prompt_details = usage_raw.get("prompt_tokens_details")
-    completion_details = usage_raw.get("completion_tokens_details")
-    if isinstance(prompt_details, dict):
-        usage["input_tokens_details"] = prompt_details
-    if isinstance(completion_details, dict):
-        usage["output_tokens_details"] = completion_details
-    return {
-        "usage": usage,
-        "estimated_cost_usd": 0.0,
-        "cost_estimate_note": "Locally hosted vLLM inference; API cost recorded as $0.",
-        "response_id": str(getattr(response, "id", "") or "") or None,
-        "served_model": model,
-    }
 
 
 class JsonLLMBackend:
@@ -176,7 +122,7 @@ class JsonLLMBackend:
         max_output_tokens: int | None = None,
         enable_thinking: bool = True,
         seed: int | None = None,
-        timeout_seconds: float = 3600.0,
+        timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         background: bool = False,
     ) -> None:
         if backend not in BACKEND_CHOICES:
@@ -194,10 +140,14 @@ class JsonLLMBackend:
         self.seed = seed
         self.timeout_seconds = timeout_seconds
         self.background = background and backend == BACKEND_OPENAI_RESPONSES
+        # max_retries=0: a retry could duplicate a judgment/generation.
         self.client = OpenAI(
             api_key=api_key,
             base_url=base_url,
-            timeout=timeout_seconds,
+            timeout=httpx.Timeout(
+                timeout_seconds,
+                connect=min(CONNECT_TIMEOUT_SECONDS, timeout_seconds),
+            ),
             max_retries=0,
         )
 
@@ -213,27 +163,60 @@ class JsonLLMBackend:
                 f"available models: {sorted(ids)}"
             )
 
+    def _responses_kwargs(
+        self, *, system_prompt: str, user_prompt: str, json_mode: bool
+    ) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "instructions": system_prompt,
+            "input": user_prompt,
+        }
+        if json_mode:
+            kwargs["text"] = {"format": {"type": "json_object"}}
+        if self.reasoning_effort:
+            kwargs["reasoning"] = {"effort": self.reasoning_effort}
+        if self.temperature is not None:
+            kwargs["temperature"] = self.temperature
+        if self.max_output_tokens is not None:
+            kwargs["max_output_tokens"] = self.max_output_tokens
+        if self.background:
+            kwargs["background"] = True
+        return kwargs
+
+    def _responses_call(self, kwargs: dict[str, Any]) -> Any:
+        response = responses_create_adaptive(self.client, **kwargs)
+        if self.background:
+            response = _await_background_response(
+                self.client, response, timeout_seconds=self.timeout_seconds
+            )
+        return response
+
+    def _local_text(self, response: Any, *, what: str, hint: str = "") -> str:
+        if not response.choices:
+            raise RuntimeError("Local vLLM returned no completion choices.")
+        message = response.choices[0].message
+        raw_content = message.content
+        raw = raw_content.strip() if isinstance(raw_content, str) else ""
+        if not raw:
+            reasoning = getattr(message, "reasoning_content", None)
+            reasoning_chars = len(reasoning) if isinstance(reasoning, str) else 0
+            finish_reason = response.choices[0].finish_reason
+            raise RuntimeError(
+                f"Local vLLM returned no final {what} "
+                f"(finish_reason={finish_reason!r}, reasoning_chars={reasoning_chars})."
+                f"{hint}"
+            )
+        return raw
+
     def call_json(self, *, system_prompt: str, user_prompt: str) -> JsonCallResult:
         if self.backend == BACKEND_OPENAI_RESPONSES:
-            kwargs: dict[str, Any] = {
-                "model": self.model,
-                "instructions": system_prompt,
-                "input": user_prompt,
-                "text": {"format": {"type": "json_object"}},
-            }
-            if self.reasoning_effort:
-                kwargs["reasoning"] = {"effort": self.reasoning_effort}
-            if self.temperature is not None:
-                kwargs["temperature"] = self.temperature
-            if self.max_output_tokens is not None:
-                kwargs["max_output_tokens"] = self.max_output_tokens
-            if self.background:
-                kwargs["background"] = True
-            response = responses_create_adaptive(self.client, **kwargs)
-            if self.background:
-                response = _await_background_response(
-                    self.client, response, timeout_seconds=self.timeout_seconds
+            response = self._responses_call(
+                self._responses_kwargs(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    json_mode=True,
                 )
+            )
             raw = _responses_text(response)
             metrics = ResponsesCallMetrics.from_response(
                 response, model=self.model
@@ -249,20 +232,11 @@ class JsonLLMBackend:
             user_prompt=user_prompt,
             json_mode=True,
         )
-        if not response.choices:
-            raise RuntimeError("Local vLLM returned no completion choices.")
-        message = response.choices[0].message
-        raw_content = message.content
-        raw = raw_content.strip() if isinstance(raw_content, str) else ""
-        if not raw:
-            reasoning = getattr(message, "reasoning_content", None)
-            reasoning_chars = len(reasoning) if isinstance(reasoning, str) else 0
-            finish_reason = response.choices[0].finish_reason
-            raise RuntimeError(
-                "Local vLLM returned no final JSON content "
-                f"(finish_reason={finish_reason!r}, reasoning_chars={reasoning_chars}). "
-                "This usually means the output ceiling was consumed by reasoning."
-            )
+        raw = self._local_text(
+            response,
+            what="JSON content",
+            hint=" This usually means the output ceiling was consumed by reasoning.",
+        )
         return JsonCallResult(
             payload=_extract_json_object(raw),
             raw_text=raw,
@@ -272,24 +246,13 @@ class JsonLLMBackend:
     def call_text(self, *, system_prompt: str, user_prompt: str) -> JsonCallResult:
         """Return unwrapped text while retaining the same metrics container."""
         if self.backend == BACKEND_OPENAI_RESPONSES:
-            kwargs: dict[str, Any] = {
-                "model": self.model,
-                "instructions": system_prompt,
-                "input": user_prompt,
-            }
-            if self.reasoning_effort:
-                kwargs["reasoning"] = {"effort": self.reasoning_effort}
-            if self.temperature is not None:
-                kwargs["temperature"] = self.temperature
-            if self.max_output_tokens is not None:
-                kwargs["max_output_tokens"] = self.max_output_tokens
-            if self.background:
-                kwargs["background"] = True
-            response = responses_create_adaptive(self.client, **kwargs)
-            if self.background:
-                response = _await_background_response(
-                    self.client, response, timeout_seconds=self.timeout_seconds
+            response = self._responses_call(
+                self._responses_kwargs(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    json_mode=False,
                 )
+            )
             raw = _responses_text(response)
             if not raw:
                 raise RuntimeError("OpenAI Responses returned no final text.")
@@ -303,19 +266,7 @@ class JsonLLMBackend:
             user_prompt=user_prompt,
             json_mode=False,
         )
-        if not response.choices:
-            raise RuntimeError("Local vLLM returned no completion choices.")
-        message = response.choices[0].message
-        raw_content = message.content
-        raw = raw_content.strip() if isinstance(raw_content, str) else ""
-        if not raw:
-            reasoning = getattr(message, "reasoning_content", None)
-            reasoning_chars = len(reasoning) if isinstance(reasoning, str) else 0
-            finish_reason = response.choices[0].finish_reason
-            raise RuntimeError(
-                "Local vLLM returned no final design text "
-                f"(finish_reason={finish_reason!r}, reasoning_chars={reasoning_chars})."
-            )
+        raw = self._local_text(response, what="design text")
         return JsonCallResult(
             payload={},
             raw_text=raw,
