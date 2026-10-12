@@ -46,6 +46,9 @@ def training_command(c: dict) -> list:
 
 
 def train(c: dict) -> None:
+    if sys.platform == "win32":
+        raise RuntimeError("The train stage launches NCCL pp_ddp ranks, which need Linux (use WSL on Windows). "
+                           "For single-GPU training on Windows run training/train_sft_lora.py --parallel pp directly.")
     if (run_root(c) / "training/train_log.jsonl").exists():
         raise FileExistsError("Training log exists; use train_sft_lora.py --resume explicitly")
     process.run(training_command(c))

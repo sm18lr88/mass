@@ -60,14 +60,20 @@ class StageTableTests(unittest.TestCase):
         log = self.base / "run/training/train_log.jsonl"
         log.parent.mkdir(parents=True)
         log.write_text("", encoding="utf-8")
-        with patch.object(process, "run") as fake, self.assertRaises(FileExistsError):
+        with patch.object(sft.sys, "platform", "linux"), patch.object(process, "run") as fake, self.assertRaises(FileExistsError):
             self.main("train")
         fake.assert_not_called()
 
     def test_train_launches_through_the_process_seam(self):
-        with patch.object(process, "run") as fake:
+        with patch.object(sft.sys, "platform", "linux"), patch.object(process, "run") as fake:
             self.main("train")
         self.assertEqual(fake.call_args.args[0], sft.training_command(self.c))
+
+    def test_train_refuses_windows_before_launching_nccl_ranks(self):
+        with patch.object(sft.sys, "platform", "win32"), patch.object(process, "run") as fake:
+            with self.assertRaisesRegex(RuntimeError, "--parallel pp"):
+                self.main("train")
+        fake.assert_not_called()
 
 
 class RecordsTests(unittest.TestCase):

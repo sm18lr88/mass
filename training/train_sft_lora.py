@@ -221,14 +221,15 @@ def main():
     args = parse_args()
     dist = args.parallel in ("fsdp2", "pp_ddp")
     if args.parallel == "fsdp2":
-        torch.distributed.init_process_group("nccl")
+        # Bind NCCL to this rank's GPU up front (torch.distributed.run sets LOCAL_RANK).
+        device = torch.device("cuda", int(os.environ.get("LOCAL_RANK", 0)))
+        torch.cuda.set_device(device)
+        torch.distributed.init_process_group("nccl", device_id=device)
         rank = torch.distributed.get_rank()
         world = torch.distributed.get_world_size()
-        torch.cuda.set_device(rank)
-        device = torch.device("cuda", rank)
     elif args.parallel == "pp_ddp":
         torch.cuda.set_device(0)
-        torch.distributed.init_process_group("nccl")
+        torch.distributed.init_process_group("nccl", device_id=torch.device("cuda", 0))
         rank = torch.distributed.get_rank()
         world = torch.distributed.get_world_size()
         device = torch.device("cuda", 0)

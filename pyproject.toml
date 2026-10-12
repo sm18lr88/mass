@@ -27,6 +27,8 @@ train = [
     "peft==0.21.2",
     "safetensors==0.8.0",
     "flash-linear-attention==0.5.2",
+    # Triton for the fla kernels on Windows (torch bundles upstream Triton only on Linux).
+    "triton-windows==3.8.0.post29; sys_platform == 'win32'",
 ]
 # vLLM inference server (.venv-serve). vLLM pins its own torch (2.13.0), older than train's.
 serve = [
@@ -50,10 +52,20 @@ conflicts = [
     [{ group = "train" }, { group = "serve" }],
 ]
 
+# PyPI ships CPU-only torch wheels for Windows; take the CUDA build there.
+# Linux keeps PyPI torch, which bundles CUDA.
+[[tool.uv.index]]
+name = "pytorch-cu132"
+url = "https://download.pytorch.org/whl/cu132"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu132", marker = "sys_platform == 'win32'" }]
+
 [tool.ruff]
 target-version = "py312"
 line-length = 160
-extend-exclude = ["benchmarks/vendor", "benchmarks/work", "runs", "models"]
+extend-exclude = ["benchmarks/vendor", "benchmarks/work", "runs", "models", ".omo"]
 
 [tool.ruff.lint]
 # Correctness-focused rules only: syntax errors, pyflakes, likely bugs, and

@@ -18,8 +18,11 @@ create a security sandbox. Public benchmarks run task code inside Docker.
 ## Install
 
 Use Linux with Python 3.14 (3.12 or newer is supported), Bash, `jq`, `curl`,
-`git`, Node.js 22, and `uv`. Keep serving and training in separate Python
-environments because vLLM pins an older PyTorch than the training stack. Run commands from the repository root.
+`git`, Node.js 22, `uv`, and a C compiler (`sudo apt-get install build-essential`):
+Triton, used by vLLM and the linear-attention training kernels, compiles a small
+CUDA driver module at startup. Keep serving and training in separate Python
+environments because vLLM pins an older PyTorch than the training stack. Run
+commands from the repository root.
 
 ```bash
 UV_PROJECT_ENVIRONMENT=.venv-train uv sync --locked --no-dev --group train
@@ -36,6 +39,29 @@ and vLLM builds. The top-level pins in `pyproject.toml` were recovered from the 
 environments; `uv.lock` records the resolved transitive versions. The `train`
 and `serve` dependency groups are declared as conflicting, so uv never installs
 them into the same environment.
+
+### Windows workstations
+
+On Windows, `uv sync --locked --group train` installs the CUDA build of PyTorch
+from the PyTorch `cu132` index (PyPI only ships CPU wheels for Windows), so
+single-GPU training runs natively:
+
+```powershell
+uv sync --locked --group train
+uv run python training/train_sft_lora.py --parallel pp ...
+```
+
+NCCL is not available on Windows, so use `--parallel pp` (one process) there.
+The `train` group installs `triton-windows` on Windows, so the
+flash-linear-attention kernels run natively; like Linux, Triton needs a C
+compiler for its driver module (the Visual Studio C++ build tools on Windows).
+vLLM, NCCL training (`fsdp2`, `pp_ddp`, and `python -m mass
+train`), and the bash episode runner need Linux; on Windows run them in WSL from
+the same checkout (`/mnt/<drive>/...`), with the serve and train environments
+created by `uv sync` inside WSL. Keep model weights on the WSL filesystem for
+serving there: loading through the Windows-drive mount is several times slower.
+WSL forwards `127.0.0.1`, so Windows-side clients reach a vLLM server running
+in WSL.
 
 ## Try one task
 
@@ -79,6 +105,15 @@ CUDA_VISIBLE_DEVICES=0 .venv-serve/bin/vllm serve models/L0-fp8 \
   --max-model-len 262144 --enable-auto-tool-choice --tool-call-parser qwen3_coder \
   --reasoning-parser qwen3 --max-num-seqs 4 --gpu-memory-utilization 0.90
 ```
+
+vLLM's FlashInfer sampler compiles its kernels with `nvcc` on first use. Without
+a CUDA toolkit installed, start the server with `VLLM_USE_FLASHINFER_SAMPLER=0`
+to use the PyTorch sampler instead. `--gpu-memory-utilization` must leave room
+for at least one `--max-model-len` request in the KV cache; vLLM reports the
+largest length that fits when it does not. On GPUs without a native vLLM
+block-FP8 kernel (for example an RTX 4090), vLLM logs a warning and serves FP8
+checkpoints with weight-only FP8 (Marlin) kernels: outputs are correct, but
+throughput and numerics differ from FP8 serving on the paper's GPUs.
 
 Activate the training environment for the following stages. It also has the
 client and trace-rendering dependencies. `EPISODE_CUDA_VISIBLE_DEVICES` controls

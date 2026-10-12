@@ -18,6 +18,7 @@ student will see. Nothing is modified in either direction.
 """
 import argparse
 import asyncio
+import itertools
 import json
 import signal
 import time
@@ -125,9 +126,8 @@ async def handle(request: web.Request) -> web.StreamResponse:
     rec = {
         "ts_start": t0, "ts_start_iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t0)),
         "method": request.method, "path": request.rel_url.path_qs,
-        "seq": app["seq"], "request_bytes": len(body),
+        "seq": next(app["seq"]), "request_bytes": len(body),
     }
-    app["seq"] += 1
     if body:
         try:
             rec["request"] = json.loads(body)
@@ -214,7 +214,7 @@ def main():
     app["upstream"] = args.upstream.rstrip("/")
     app["log_fh"] = open(args.log, "a", encoding="utf-8")
     app["keep_raw_sse"] = args.keep_raw_sse
-    app["seq"] = 0
+    app["seq"] = itertools.count()  # mutating app state after startup is deprecated in aiohttp
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
     app.router.add_route("*", "/{tail:.*}", handle)
@@ -228,7 +228,10 @@ def main():
         stop = asyncio.Event()
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, stop.set)
+            try:
+                loop.add_signal_handler(sig, stop.set)
+            except NotImplementedError:  # Windows event loops have no add_signal_handler.
+                signal.signal(sig, lambda *_: loop.call_soon_threadsafe(stop.set))
         await stop.wait()
         await runner.cleanup()
         print("proxy stopped", flush=True)

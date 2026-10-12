@@ -1,9 +1,16 @@
 # Offline tests for the logging API proxy: SSE assembly, log shape, and handle() against a fake upstream.
+import http.server
 import importlib.util
+import itertools
 import json
+import queue
 import socket
+import subprocess
+import sys
 import tempfile
+import threading
 import unittest
+import urllib.request
 from pathlib import Path
 
 from aiohttp import web
@@ -81,7 +88,7 @@ class HandleTest(unittest.IsolatedAsyncioTestCase):
         app["upstream"] = upstream
         app["log_fh"] = open(self.log, "a", encoding="utf-8")
         app["keep_raw_sse"] = False
-        app["seq"] = 0
+        app["seq"] = itertools.count()
         app.on_startup.append(proxy.on_startup)
         app.on_cleanup.append(proxy.on_cleanup)
         app.router.add_route("*", "/{tail:.*}", proxy.handle)
@@ -134,6 +141,54 @@ class HandleTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("proxy_error", rec)
         self.assertEqual(rec["request"], {"m": 1})
         self.assertNotIn("status", rec)
+
+
+class _FakeUpstream(http.server.BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        body = json.dumps({"object": "list", "data": [{"id": "fake-model", "object": "model"}]}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args: object) -> None:
+        pass
+
+
+def _stop_process_tree(proc: subprocess.Popen) -> None:
+    # A Windows venv python.exe is a launcher with the interpreter as a child; end the whole tree.
+    if sys.platform == "win32":
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True, check=False)
+    else:
+        proc.terminate()
+    proc.wait(timeout=30)
+
+
+class ProxyProcessTest(unittest.TestCase):
+    def test_proxy_process_starts_and_forwards_on_this_platform(self) -> None:
+        upstream = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _FakeUpstream)
+        threading.Thread(target=upstream.serve_forever, daemon=True).start()
+        self.addCleanup(upstream.shutdown)
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "api_requests.jsonl"
+            proc = subprocess.Popen(
+                [sys.executable, str(PATH), "--listen", str(port), "--upstream", f"http://127.0.0.1:{upstream.server_port}", "--log", str(log)],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8")
+            try:
+                lines: queue.Queue[str] = queue.Queue()
+                threading.Thread(target=lambda: [lines.put(line) for line in proc.stdout], daemon=True).start()
+                self.assertTrue(lines.get(timeout=30).startswith("READY"))
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/v1/models", timeout=30) as resp:
+                    self.assertEqual(json.load(resp)["data"][0]["id"], "fake-model")
+                self.assertIsNone(proc.poll(), "proxy process exited after serving")
+            finally:
+                _stop_process_tree(proc)
+            record = json.loads(log.read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual((record["path"], record["status"]), ("/v1/models", 200))
 
 
 if __name__ == "__main__":
