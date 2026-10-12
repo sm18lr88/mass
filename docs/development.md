@@ -35,7 +35,7 @@ include the mocked-backend RHI integration test. Training dependencies and
 benchmark containers are only needed for their respective experiments.
 
 GitHub Actions runs lint, these tests, both configuration previews, and the
-source check on Python 3.12 and 3.13 with the locked core dependencies. It does not
+source check on Python 3.12, 3.13, and 3.14 with the locked core dependencies. It does not
 launch model servers, download weights, or run benchmark experiments.
 
 ## Experiment configurations

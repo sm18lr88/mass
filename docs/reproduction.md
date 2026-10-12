@@ -80,6 +80,26 @@ aggregation behind the paper's supplied three-trial summaries are not included.
 The scripts compute new summaries from evaluator output; they do not use the
 paper's aggregate values as test expectations.
 
+## Dependency versions
+
+`pyproject.toml` and `uv.lock` now pin newer releases than the environments
+used for the reported experiments, and Python 3.14 is the default interpreter.
+The research environments used Python 3.12 with these top-level pins:
+
+| Environment | Original pins |
+|---|---|
+| Core | openai 2.46.0, anthropic 0.117.0, pydantic 2.13.4, aiohttp 3.14.1, httpx 0.28.1, tiktoken 0.13.0, huggingface-hub 1.28.0 |
+| Training | torch 2.11.0, transformers 5.15.1, peft 0.20.0, safetensors 0.8.0, flash-linear-attention 0.5.2 |
+| Serving | vllm 0.25.1, transformers 5.14.1 |
+| Benchmarks | datasets 5.0.1, docker 7.1.0, tqdm >= 4.66 |
+
+To reproduce the reported environment exactly, install those pins instead of
+the lock file. The newer versions change model serving, tokenization, and
+training kernels, so they can change sampled trajectories and training results.
+They have been checked with the offline tests, SDK contract tests, and a tiny
+CPU training smoke test, but not with GPU training, vLLM serving, or a full
+MASS cycle.
+
 ## Validation
 
 The offline tests cover ranking, split isolation, token masking, checkpoint

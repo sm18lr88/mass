@@ -6,6 +6,8 @@ from __future__ import annotations
 import unittest
 from types import SimpleNamespace
 
+import httpx2
+
 from harness_improvement.llm_backend import (
     BackgroundResponseTimeout,
     JsonLLMBackend,
@@ -172,6 +174,8 @@ class ClientTimeoutTests(unittest.TestCase):
             timeout_seconds=1234.0,
         )
         timeout = backend.client.timeout
+        # openai>=3 runs on httpx2; an httpx.Timeout would be nested, not applied.
+        self.assertIsInstance(timeout, httpx2.Timeout)
         self.assertEqual(timeout.read, 1234.0)
         self.assertEqual(timeout.connect, 30.0)
         self.assertEqual(backend.client.max_retries, 0)

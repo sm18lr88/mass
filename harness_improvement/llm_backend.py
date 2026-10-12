@@ -14,7 +14,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-import httpx
+import httpx2
 from openai import OpenAI
 
 from evaluation.openai_responses import responses_create_adaptive
@@ -144,7 +144,7 @@ class JsonLLMBackend:
         self.client = OpenAI(
             api_key=api_key,
             base_url=base_url,
-            timeout=httpx.Timeout(
+            timeout=httpx2.Timeout(
                 timeout_seconds,
                 connect=min(CONNECT_TIMEOUT_SECONDS, timeout_seconds),
             ),
@@ -198,7 +198,8 @@ class JsonLLMBackend:
         raw_content = message.content
         raw = raw_content.strip() if isinstance(raw_content, str) else ""
         if not raw:
-            reasoning = getattr(message, "reasoning_content", None)
+            # vLLM renamed `reasoning_content` to `reasoning`; accept either.
+            reasoning = getattr(message, "reasoning_content", None) or getattr(message, "reasoning", None)
             reasoning_chars = len(reasoning) if isinstance(reasoning, str) else 0
             finish_reason = response.choices[0].finish_reason
             raise RuntimeError(

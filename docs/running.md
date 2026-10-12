@@ -17,9 +17,9 @@ create a security sandbox. Public benchmarks run task code inside Docker.
 
 ## Install
 
-Use Linux with Python 3.12, Bash, `jq`, `curl`, `git`, Node.js 22, and `uv`.
-Keep serving and training in separate Python environments because their
-recorded Transformers versions differ. Run commands from the repository root.
+Use Linux with Python 3.14 (3.12 or newer is supported), Bash, `jq`, `curl`,
+`git`, Node.js 22, and `uv`. Keep serving and training in separate Python
+environments because vLLM pins an older PyTorch than the training stack. Run commands from the repository root.
 
 ```bash
 UV_PROJECT_ENVIRONMENT=.venv-train uv sync --locked --no-dev --group train

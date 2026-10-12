@@ -3,17 +3,17 @@ name = "mass"
 version = "0.1.0"
 description = "MASS: recursive self-improvement through multi-agent self-supervision (research pipeline)"
 readme = "README.md"
-requires-python = ">=3.12,<3.14"
+requires-python = ">=3.12"
 # Client, judging, and trace-rendering dependencies shared by every stage.
-# Pins were recovered from the research environments; keep them exact.
+# Keep pins exact; docs/reproduction.md records the original research-environment pins.
 dependencies = [
-    "openai==2.46.0",
-    "anthropic==0.117.0",
-    "pydantic==2.13.4",
-    "aiohttp==3.14.1",
-    "httpx==0.28.1",
-    "tiktoken==0.13.0",
-    "huggingface-hub==1.28.0",
+    "openai==3.29.0",
+    "anthropic==1.13.0",
+    "pydantic==2.14.1",
+    "aiohttp==3.14.5",
+    "httpx2==2.13.1",
+    "tiktoken==0.14.0",
+    "huggingface-hub==2.2.0",
 ]
 
 [dependency-groups]
@@ -22,22 +22,22 @@ dev = [
 ]
 # LoRA SFT, adapter merge, and FP8 export (.venv-train).
 train = [
-    "torch==2.11.0",
-    "transformers==5.15.1",
-    "peft==0.20.0",
+    "torch==2.14.1",
+    "transformers==5.19.0",
+    "peft==0.21.2",
     "safetensors==0.8.0",
     "flash-linear-attention==0.5.2",
 ]
-# vLLM inference server (.venv-serve). Its Transformers pin differs from train.
+# vLLM inference server (.venv-serve). vLLM pins its own torch (2.13.0), older than train's.
 serve = [
-    "vllm==0.25.1",
-    "transformers==5.14.1",
+    "vllm==0.30.0",
+    "transformers==5.19.0",
 ]
 # Public-benchmark adapters (.venv-bench). Harbor is installed separately from
 # the pinned checkout that benchmarks/fetch_sources.py places in benchmarks/vendor/.
 bench = [
-    "datasets==5.0.1",
-    "docker==7.1.0",
+    "datasets==5.1.0",
+    "docker==7.2.0",
     "tqdm>=4.66",
 ]
 

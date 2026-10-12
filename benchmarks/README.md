@@ -13,7 +13,7 @@ five-trial setup. Evaluation adapters for AstaBench (E2E-Bench-Hard), DSBench,
 Terminal-Bench 2.0, and SWE-bench Verified are also not included.
 
 Run commands from the repository root unless a subshell changes directory.
-Use Python 3.12 and Docker with Compose. The adapters require the pinned Harbor
+Use Python 3.12 or newer (uv defaults to 3.14) and Docker with Compose. The adapters require the pinned Harbor
 checkout; they do not depend on a local research-repository installation.
 
 ## Official benchmark resources
