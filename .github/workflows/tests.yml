@@ -29,6 +29,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install locked core dependencies
         run: uv sync --locked
+      - name: Lint
+        run: uv run --locked ruff check
       - name: Run offline tests
         run: uv run --locked python -m unittest discover -s tests -v
       - name: Preview both cycles

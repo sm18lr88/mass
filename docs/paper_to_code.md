@@ -13,7 +13,7 @@
 | Training and validation split | `python -m mass select`; ranks 1–15 / rank 16 |
 | Workflow removal from the training prompt | `training/prepare_sft_data.py`; orchestrator only |
 | Post-training | `training/train_sft_lora.py`; fresh LoRA on the BF16 parent |
-| Checkpoint selection | `mass.pipeline.best_checkpoint`; minimum assistant-token validation loss |
+| Checkpoint selection | `mass.sft.best_checkpoint`; minimum assistant-token validation loss |
 | Next inference model $\mathcal L^{(k+1)}$ | Merge the selected adapter, then block-FP8 conversion |
 | External reporting | `python -m mass report`; six judgments per workspace pair |
 

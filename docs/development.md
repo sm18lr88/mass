@@ -26,7 +26,11 @@ uv run ruff check
 ```
 
 The tests use temporary directories and synthetic fixtures. They do not start
-model servers, make API calls, or launch training. The core dependencies
+model servers, make API calls, or launch training. `tests/test_architecture.py`
+enforces the package dependency direction (`evaluation` <- `evaluation_claudecodex`
+<- `harness_improvement` <- `mass`; `runtime`, `training`, and `tools` import no
+other repository package), lazy heavy imports in `mass/`, a first-line
+responsibility comment in every Python file, and byte-identical proxy copies. The core dependencies
 include the mocked-backend RHI integration test. Training dependencies and
 benchmark containers are only needed for their respective experiments.
 
