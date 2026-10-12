@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# CLI: merges a trained LoRA state dict into the BF16 base checkpoint, shard by shard on CPU.
 """Merge a LoRA state dict (from train_sft_lora.py) into the BF16 base checkpoint.
 
 Shard-by-shard on CPU: every base tensor is copied unchanged (incl. vision
@@ -16,14 +17,13 @@ import os
 import re
 import shutil
 
-import torch
 from safetensors import safe_open
 from safetensors.torch import load_file, save_file
 
 LORA_RE = re.compile(r"^(?:base_model\.model\.)?(.*)\.lora_(A|B)\.(?:default\.)?weight$")
 
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", required=True)
     ap.add_argument("--lora", required=True)
@@ -43,7 +43,8 @@ def main():
     print(f"{len(pairs)} LoRA modules, scale={scale}")
 
     os.makedirs(args.out, exist_ok=True)
-    index = json.load(open(os.path.join(args.base, "model.safetensors.index.json")))
+    with open(os.path.join(args.base, "model.safetensors.index.json"), encoding="utf-8") as f:
+        index = json.load(f)
     weight_map = index["weight_map"]
     shards = sorted(set(weight_map.values()))
     merged, seen = 0, set()
@@ -73,8 +74,9 @@ def main():
         src = os.path.join(args.base, fn)
         if os.path.isfile(src):
             shutil.copy(src, os.path.join(args.out, fn))
-    json.dump({"base": args.base, "lora": args.lora, "r": args.r, "alpha": args.alpha, "merged_modules": merged},
-              open(os.path.join(args.out, "hiw_merge_info.json"), "w"), indent=1)
+    with open(os.path.join(args.out, "hiw_merge_info.json"), "w", encoding="utf-8") as f:
+        json.dump({"base": args.base, "lora": args.lora, "r": args.r, "alpha": args.alpha, "merged_modules": merged},
+                  f, indent=1)
     print(f"merged {merged} weight tensors -> {args.out}")
 
 

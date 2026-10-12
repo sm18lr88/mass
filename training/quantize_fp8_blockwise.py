@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# CLI: quantizes a merged BF16 checkpoint to the official block-wise FP8 layout, or verifies the scheme.
 """Quantize a merged BF16 Qwen3.6-27B checkpoint into the SAME layout as the
 official Qwen/Qwen3.6-27B-FP8 checkpoint (block-wise 128x128 float8_e4m3fn
 weights + bf16 `weight_scale_inv`), using the official FP8 checkpoint as the
@@ -41,9 +42,10 @@ def dequantize_block(q: torch.Tensor, scale_inv: torch.Tensor, block=BLOCK):
     return (qf * s).reshape(out_f, in_f)
 
 
-def load_index(d):
+def load_index(d: str) -> dict[str, str]:
     p = os.path.join(d, "model.safetensors.index.json")
-    return json.load(open(p))["weight_map"]
+    with open(p, encoding="utf-8") as f:
+        return json.load(f)["weight_map"]
 
 
 def verify(args):
@@ -108,12 +110,12 @@ def convert(args):
         p = os.path.join(args.src, fn)
         if os.path.exists(p):
             shutil.copy(p, os.path.join(args.out, fn))
-    json.dump({"src": args.src, "ref": args.ref, "quantized": n_q, "copied": n_c},
-              open(os.path.join(args.out, "hiw_quant_info.json"), "w"), indent=1)
+    with open(os.path.join(args.out, "hiw_quant_info.json"), "w", encoding="utf-8") as f:
+        json.dump({"src": args.src, "ref": args.ref, "quantized": n_q, "copied": n_c}, f, indent=1)
     print(f"done: quantized {n_q}, copied {n_c} -> {args.out}")
 
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--src", required=True)
     ap.add_argument("--ref", required=True)
@@ -123,7 +125,8 @@ def main():
     if args.verify:
         verify(args)
     else:
-        assert args.out
+        if not args.out:
+            ap.error("--out is required unless --verify is given")
         convert(args)
 
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
+# CLI: LoRA SFT of the Qwen3.5/3.6 model (FSDP2 / pipeline / pp_ddp) on rendered windows with validation.
 """LoRA SFT with task-uniform, role-balanced sampling and validation loss."""
 import argparse
 import json
 import math
 import os
-import random
 import sys
 import time
 from collections import Counter, defaultdict
@@ -21,7 +21,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
-IGNORE = -100
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _REPO not in sys.path:  # run by path: sys.path[0] is training/; helpers are imported as training.<module>
+    sys.path.append(_REPO)
+
+from training.sft_sampling import IGNORE, TaskRoleSampler, WeightedSampler, load_windows, split_val  # noqa: E402
 
 
 def log(msg, rank=0):
@@ -71,97 +75,6 @@ def parse_args():
     ap.add_argument("--no-fla", action="store_true", help="force the torch fallback for the gated-delta-rule kernels (auto on CPU)")
     ap.add_argument("--autocast-bf16", action="store_true", help="run forward/backward under bf16 autocast (LoRA branch computes in bf16; fp32 master adapters stay in the optimizer)")
     return ap.parse_args()
-
-
-# ----------------------------------------------------------------------------- data
-def role_group(r):
-    role = r.get("role")
-    if role is None:
-        role = "orchestrator" if r.get("is_main") else "worker"
-    return "orch" if role == "orchestrator" else "nonmain"
-
-
-def task_of(r):
-    if r.get("task") is not None:
-        return int(r["task"])
-    import re
-    m = re.match(r"t(\d+)_", r.get("condition", ""))
-    return int(m.group(1)) if m else -1
-
-
-def load_windows(path, args):
-    rows = []
-    with open(path) as f:
-        for line in f:
-            r = json.loads(line)
-            if r["condition"] in args.exclude_condition:
-                continue
-            if args.max_len:  # debug crop: keep the TAIL so label tokens survive
-                r["input_ids"] = r["input_ids"][-args.max_len:]
-                r["labels"] = r["labels"][-args.max_len:]
-            if not any(l != IGNORE for l in r["labels"][1:]):
-                continue
-            r["_task"] = task_of(r); r["_rg"] = role_group(r)
-            rows.append(r)
-    return rows
-
-
-def split_val(rows, regex):
-    if not regex:
-        return rows, []
-    import re
-    pat = re.compile(regex)
-    tr = [r for r in rows if not pat.search(r["episode"])]
-    va = [r for r in rows if pat.search(r["episode"])]
-    return tr, va
-
-
-class WeightedSampler:
-    """draw condition ~ weights, then uniform window within the condition."""
-
-    def __init__(self, rows, cond_weights, seed):
-        self.by_cond = defaultdict(list)
-        for i, r in enumerate(rows):
-            self.by_cond[r["condition"]].append(i)
-        self.conds = sorted(self.by_cond)
-        w = [cond_weights.get(c, 1.0) for c in self.conds]
-        s = sum(w)
-        self.probs = [x / s for x in w]
-        self.seed = seed
-
-    def describe(self):
-        return f"condition-uniform over {len(self.conds)} conditions"
-
-    def draw(self, rank, step):
-        rng = random.Random(f"{self.seed}-{rank}-{step}")
-        c = rng.choices(self.conds, weights=self.probs, k=1)[0]
-        return rng.choice(self.by_cond[c])
-
-
-class TaskRoleSampler:
-    """draw a task uniformly, then a role (orchestrator with p_orch when both exist), then a window uniformly within (task, role)."""
-
-    def __init__(self, rows, p_orch, seed):
-        self.by = defaultdict(lambda: {"orch": [], "nonmain": []})
-        for i, r in enumerate(rows):
-            self.by[r["_task"]][r["_rg"]].append(i)
-        self.tasks = sorted(self.by)
-        self.p_orch = p_orch
-        self.seed = seed
-
-    def describe(self):
-        return "task-uniform over %s; role P(orch)=%.4f; per task orch/nonmain windows: %s" % (
-            self.tasks, self.p_orch, {t: (len(self.by[t]["orch"]), len(self.by[t]["nonmain"])) for t in self.tasks})
-
-    def draw(self, rank, step):
-        rng = random.Random(f"{self.seed}-{rank}-{step}")
-        t = rng.choice(self.tasks)
-        have = [g for g in ("orch", "nonmain") if self.by[t][g]]
-        if len(have) == 2:
-            g = "orch" if rng.random() < self.p_orch else "nonmain"
-        else:
-            g = have[0]
-        return rng.choice(self.by[t][g])
 
 
 # ----------------------------------------------------------------------------- model
@@ -276,7 +189,8 @@ def save_checkpoint(model, opt, args, step, out_dir, rank, extra):
             tmp = os.path.join(out_dir, "optimizer.pt.tmp")
             torch.save({k: v for k, v in opt.state_dict().items()}, tmp)
             os.replace(tmp, os.path.join(out_dir, "optimizer.pt"))
-        json.dump({"step": step, **extra}, open(os.path.join(out_dir, "train_state.json"), "w"), indent=1)
+        with open(os.path.join(out_dir, "train_state.json"), "w", encoding="utf-8") as f:
+            json.dump({"step": step, **extra}, f, indent=1)
         log(f"saved checkpoint step {step} -> {out_dir} ({len(sd)} lora tensors, optimizer state {'yes' if opt is not None else 'no'})", rank)
 
 
@@ -324,7 +238,8 @@ def main():
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     os.makedirs(args.out, exist_ok=True)
     if rank == 0:
-        json.dump(vars(args), open(os.path.join(args.out, "args.json"), "w"), indent=1)
+        with open(os.path.join(args.out, "args.json"), "w", encoding="utf-8") as f:
+            json.dump(vars(args), f, indent=1)
 
     rows = load_windows(args.data, args)
     train_rows, val_rows = split_val(rows, args.val_episode_regex)
@@ -370,7 +285,8 @@ def main():
         n = load_lora_into(model, args.init_lora)
         log(f"initialised {n} lora tensors from {args.init_lora}", rank)
     if args.resume:
-        st = json.load(open(os.path.join(args.resume, "train_state.json")))
+        with open(os.path.join(args.resume, "train_state.json"), encoding="utf-8") as f:
+            st = json.load(f)
         n = load_lora_into(model, os.path.join(args.resume, "lora_state_dict.safetensors"))
         start_step = st["step"]
         opt_p = os.path.join(args.resume, "optimizer.pt")
@@ -379,7 +295,7 @@ def main():
             resumed_opt = True
         log(f"resumed {n} lora tensors from {args.resume} at step {start_step} (optimizer state {'restored' if resumed_opt else 'RESET: no optimizer.pt'})", rank)
         if rank == 0:
-            with open(os.path.join(args.out, "resume_log.jsonl"), "a") as f:
+            with open(os.path.join(args.out, "resume_log.jsonl"), "a", encoding="utf-8") as f:
                 f.write(json.dumps({"resumed_from": args.resume, "step": start_step, "optimizer_restored": resumed_opt, "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}) + "\n")
 
     if args.check_loss and rank == 0 and not dist:
@@ -393,8 +309,8 @@ def main():
             ref = F.cross_entropy(logits, y, ignore_index=IGNORE, reduction="sum")
             log(f"check-loss: chunked={ls.item():.6f} full={ref.item():.6f} tokens={nt} rel_diff={(abs(ls.item()-ref.item())/max(1e-9,ref.item())):.2e}", rank)
     log(f"training: total_steps={total_steps} windows/step={per_step} lr={args.lr} r={args.lora_r} alpha={args.lora_alpha}", rank)
-    hist = open(os.path.join(args.out, "train_log.jsonl"), "a") if rank == 0 else None
-    expo = open(os.path.join(args.out, "exposure_log.jsonl"), "a") if rank == 0 else None
+    hist = open(os.path.join(args.out, "train_log.jsonl"), "a", encoding="utf-8") if rank == 0 else None
+    expo = open(os.path.join(args.out, "exposure_log.jsonl"), "a", encoding="utf-8") if rank == 0 else None
 
     # validation keys: (episode, role) so per-episode / per-role / per-task losses can be reported
     vkeys = sorted({(r["episode"], r["_rg"]) for r in val_rows}); vidx = {k: i for i, k in enumerate(vkeys)}
