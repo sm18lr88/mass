@@ -104,18 +104,20 @@ needed.
 
 ### 1. Preview the pipeline
 
-From your cloned `mass` directory, preview the first cycle and run the offline
+From your cloned `mass` directory, install the locked core dependencies with
+[uv](https://docs.astral.sh/uv/), preview the first cycle, and run the offline
 tests. These commands need no GPU or model server:
 
 ```bash
-python3 -m mass plan --config configs/paper.json
-python3 -m unittest discover -s tests -v
+uv sync --locked
+uv run python -m mass plan --config configs/paper.json
+uv run python -m unittest discover -s tests -v
 ```
 
 `plan` prints the configuration and training command without executing them.
 The tests use small fixtures and make no model calls. The RHI integration test
-requires [the core dependencies](requirements-core.txt) and is skipped when
-they are unavailable.
+requires the core dependencies declared in [pyproject.toml](pyproject.toml) and
+is skipped when they are unavailable.
 
 ### 2. Run your first search
 

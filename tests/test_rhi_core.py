@@ -10,7 +10,7 @@ from unittest.mock import patch
 from mass.io import ROOT, read_json
 
 
-@unittest.skipUnless(importlib.util.find_spec("openai") and importlib.util.find_spec("pydantic"), "requires requirements-core.txt")
+@unittest.skipUnless(importlib.util.find_spec("openai") and importlib.util.find_spec("pydantic"), "requires the core dependencies (uv sync)")
 class RHICoreTests(unittest.TestCase):
     def test_final_comparison_retains_winner_without_another_proposal(self):
         from harness_improvement import iterate_multi_agent_prompt as rhi

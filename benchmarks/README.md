@@ -46,12 +46,15 @@ whole percent. The last column reports the mean score among delivered reports.
 ## Setup
 
 ```bash
-python3 benchmarks/fetch_sources.py
-python3.12 -m venv .venv-bench
-(cd benchmarks && ../.venv-bench/bin/pip install -r requirements.txt)
+uv run python benchmarks/fetch_sources.py
+UV_PROJECT_ENVIRONMENT=.venv-bench uv sync --locked --no-dev --group bench --inexact
+uv pip install --python .venv-bench -e benchmarks/vendor/harbor
 source .venv-bench/bin/activate
 ```
 
+Harbor comes from the pinned checkout that the fetcher places in
+`benchmarks/vendor/`, so it is installed after the locked `bench` group.
+`--inexact` keeps it installed when you sync that environment again.
 The public repository URLs and exact commits are in
 [configs/sources.json](configs/sources.json).
 The fetcher applies the included ScienceAgentBench patch: it prevents an

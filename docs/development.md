@@ -1,22 +1,37 @@
 # Development
 
 Run commands from the repository root. The pipeline is imported directly from
-the checkout, so an editable installation is not required.
+the checkout, so `pyproject.toml` describes an environment rather than an
+installable package (`tool.uv.package = false`).
 
-## Tests
+## Dependencies
+
+Dependencies are declared in `pyproject.toml` and locked in `uv.lock`. The core
+client dependencies are the project dependencies; `dev`, `train`, `serve`, and
+`bench` are dependency groups. `dev` is installed by default.
 
 ```bash
-python3 -m unittest discover -s tests -v
+uv sync --locked
+```
+
+To change a pin, edit `pyproject.toml`, run `uv lock`, and commit both files.
+Use `uv sync --locked` (or `uv run --locked`) everywhere else so a stale lock
+file fails instead of being rewritten.
+
+## Tests and lint
+
+```bash
+uv run python -m unittest discover -s tests -v
+uv run ruff check
 ```
 
 The tests use temporary directories and synthetic fixtures. They do not start
-model servers, make API calls, or launch training. Install
-`requirements-core.txt` to include the mocked-backend RHI integration test.
-Training dependencies and benchmark containers are only needed for their
-respective experiments.
+model servers, make API calls, or launch training. The core dependencies
+include the mocked-backend RHI integration test. Training dependencies and
+benchmark containers are only needed for their respective experiments.
 
-GitHub Actions runs these tests, both configuration previews, and the source
-check on Python 3.12 and 3.13 with the pinned core dependencies. It does not
+GitHub Actions runs lint, these tests, both configuration previews, and the
+source check on Python 3.12 and 3.13 with the locked core dependencies. It does not
 launch model servers, download weights, or run benchmark experiments.
 
 ## Experiment configurations

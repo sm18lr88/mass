@@ -22,10 +22,8 @@ Keep serving and training in separate Python environments because their
 recorded Transformers versions differ. Run commands from the repository root.
 
 ```bash
-python3.12 -m venv .venv-train
-.venv-train/bin/pip install -r requirements-train.txt
-python3.12 -m venv .venv-serve
-.venv-serve/bin/pip install -r requirements-serve.txt
+UV_PROJECT_ENVIRONMENT=.venv-train uv sync --locked --no-dev --group train
+UV_PROJECT_ENVIRONMENT=.venv-serve uv sync --locked --only-group serve
 npm install --prefix .runtime @qwen-code/qwen-code@0.20.0
 export PATH="$PWD/.runtime/node_modules/.bin:$PATH"
 .venv-train/bin/python tools/fetch_models.py
@@ -34,8 +32,10 @@ export PATH="$PWD/.runtime/node_modules/.bin:$PATH"
 The model download is large. Its public revisions are listed in
 `configs/models.json`. Training uses the BF16 base, while inference uses its
 FP8 counterpart. Install compatible NVIDIA drivers/CUDA for the pinned PyTorch
-and vLLM builds. The top-level pins were recovered from the research environments;
-this is not a transitive dependency lock file.
+and vLLM builds. The top-level pins in `pyproject.toml` were recovered from the research
+environments; `uv.lock` records the resolved transitive versions. The `train`
+and `serve` dependency groups are declared as conflicting, so uv never installs
+them into the same environment.
 
 ## Try one task
 

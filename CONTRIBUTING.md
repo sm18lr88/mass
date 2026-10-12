@@ -13,12 +13,14 @@ Update the documentation when changing the protocol or output format.
 Run the offline checks before submitting a pull request:
 
 ```bash
-python3 -m unittest discover -s tests -v
-python3 -m mass plan --config configs/paper.json
-python3 -m mass plan --config configs/cycle2.json
+uv sync --locked
+uv run ruff check
+uv run python -m unittest discover -s tests -v
+uv run python -m mass plan --config configs/paper.json
+uv run python -m mass plan --config configs/cycle2.json
 ```
 
-Install `requirements-core.txt` to include the RHI integration test. Tests should
+The locked core dependencies include the RHI integration test. Tests should
 use fixtures or mocked model backends; they should not need API credentials,
 model weights, or GPUs. For changes that need an actual model run, describe
 separately what was tested and what remains unverified.

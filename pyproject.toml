@@ -1,0 +1,63 @@
+[project]
+name = "mass"
+version = "0.1.0"
+description = "MASS: recursive self-improvement through multi-agent self-supervision (research pipeline)"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+# Client, judging, and trace-rendering dependencies shared by every stage.
+# Pins were recovered from the research environments; keep them exact.
+dependencies = [
+    "openai==2.46.0",
+    "anthropic==0.117.0",
+    "pydantic==2.13.4",
+    "aiohttp==3.14.1",
+    "httpx==0.28.1",
+    "tiktoken==0.13.0",
+    "huggingface-hub==1.28.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.17,<0.18",
+]
+# LoRA SFT, adapter merge, and FP8 export (.venv-train).
+train = [
+    "torch==2.11.0",
+    "transformers==5.15.1",
+    "peft==0.20.0",
+    "safetensors==0.8.0",
+    "flash-linear-attention==0.5.2",
+]
+# vLLM inference server (.venv-serve). Its Transformers pin differs from train.
+serve = [
+    "vllm==0.25.1",
+    "transformers==5.14.1",
+]
+# Public-benchmark adapters (.venv-bench). Harbor is installed separately from
+# the pinned checkout that benchmarks/fetch_sources.py places in benchmarks/vendor/.
+bench = [
+    "datasets==5.0.1",
+    "docker==7.1.0",
+    "tqdm>=4.66",
+]
+
+[tool.uv]
+# Commands run from the repository root against the checkout; there is no
+# installable distribution, so uv manages only the environment.
+package = false
+default-groups = ["dev"]
+conflicts = [
+    [{ group = "train" }, { group = "serve" }],
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 160
+extend-exclude = ["benchmarks/vendor", "benchmarks/work", "runs", "models"]
+
+[tool.ruff.lint]
+# Correctness-focused rules only: syntax errors, pyflakes, likely bugs, and
+# file I/O that silently depends on the platform's locale encoding.
+preview = true
+explicit-preview-rules = true
+select = ["E9", "F", "B", "PLW1514"]
